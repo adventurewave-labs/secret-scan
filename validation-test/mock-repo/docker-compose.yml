@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    environment:
+      - AWS_ACCESS_KEY_ID=AKIAIOSFODNN7DOCKERKEY
+      - AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYDOCKERKEY
+      - DATABASE_URL=postgresql://dockeruser:dockerpass@db:5432/appdb
+      - REDIS_URL=redis://dockerredis:dockerpass@redis:6379/0
+      - GITHUB_TOKEN=ghp_docker1234567890abcdefghijklmnopqrstuvwxyz
+      - STRIPE_SECRET_KEY=sk_live_docker1234567890abcdefghijklmnopqrstuvwxyz
+      - SENDGRID_API_KEY=SG.docker1234567890abcdefghijklmnopqrstuvwxyz
+      - JWT_SECRET=docker-jwt-secret-key-with-sufficient-entropy
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=dockeruser
+      - POSTGRES_PASSWORD=dockerpass
+      - POSTGRES_DB=appdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:6
+    command: redis-server --requirepass dockerpass
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:

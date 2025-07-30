@@ -1,0 +1,17 @@
+# Clean file with no secrets
+
+This file contains normal content with no secrets.
+
+Some regular text here.
+Numbers: 12345
+Words: hello world test
+
+Configuration example:
+debug = true
+port = 8080
+host = "localhost"
+
+Regular strings that should not trigger:
+- short_string
+- normalpassword
+- regular_api_key_placeholder

@@ -1,0 +1,2 @@
+# This file should be scanned
+GITHUB_TOKEN=ghp_1234567890abcdefghijklmnopqrstuvwxyz

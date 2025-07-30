@@ -1,0 +1,4 @@
+secret_config.txt
+*.env
+/private/
+temp_*

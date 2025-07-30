@@ -1,0 +1,54 @@
+[package]
+name = "secretscan"
+version = "0.2.1"
+edition = "2021"
+description = "A blazing-fast secret scanner for your codebase"
+authors = ["Secretscan Team <support@secretscan.io>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/marcuspat/secret-scan"
+repository = "https://github.com/marcuspat/secret-scan"
+documentation = "https://github.com/marcuspat/secret-scan#readme"
+keywords = ["security", "secrets", "scanner", "credentials", "detection"]
+categories = ["command-line-utilities", "development-tools", "security"]
+exclude = [
+    ".github/*",
+    "docs/demo.gif",
+    "benches/large_test_data/*",
+    "coverage/*",
+    "reports/*"
+]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[[bin]]
+name = "secretscan"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+walkdir = "2"
+ignore = "0.4"
+rayon = "1"
+lazy_static = "1.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+indicatif = "0.17"
+colored = "2.0"
+base64 = "0.21"
+hex = "0.4"
+url = "2.4"
+
+[dev-dependencies]
+tempfile = "3.8"
+criterion = "0.5"
+flamegraph = "0.6"
+assert_cmd = "2.0"
+predicates = "3.0"
+
+# [[bench]]
+# name = "scanning"
+# harness = false
