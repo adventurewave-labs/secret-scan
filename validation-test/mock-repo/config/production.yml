@@ -1,0 +1,16 @@
+# Validation test configuration with mock Stripe keys
+payment:
+  stripe:
+    public_key: pk_test_VALIDATION_MOCK_KEY_1234567890abcdef
+    private_key: sk_test_VALIDATION_MOCK_KEY_1234567890abcdef
+    webhook_endpoint: whsec_VALIDATION_MOCK_WEBHOOK_1234567890
+
+services:
+  database:
+    connection: mongodb://testuser:testpass@localhost:27017/validation
+  cache:
+    redis: redis://localhost:6379/0
+    
+features:
+  payments_enabled: true
+  test_mode: true

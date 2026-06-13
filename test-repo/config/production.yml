@@ -1,0 +1,12 @@
+# Test configuration with mock Stripe keys
+stripe:
+  publishable_key: pk_test_MOCK1234567890abcdefghijklmnopqrstuvwxyz
+  secret_key: sk_test_MOCK1234567890abcdefghijklmnopqrstuvwxyz
+  webhook_secret: whsec_MOCK1234567890abcdefghijklmnopqrstuvwxyz
+
+database:
+  url: postgresql://user:password@localhost/testdb
+  
+api:
+  endpoint: https://api.example.com
+  key: api_key_MOCK1234567890
