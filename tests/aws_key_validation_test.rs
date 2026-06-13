@@ -10,20 +10,20 @@ fn test_aws_access_key_format_validation() {
     // Test various AWS access key formats and edge cases
     let test_content = r#"
 // Valid AWS Access Keys (should be detected)
-const VALID_KEY_1: &str = "***REMOVED***";  // Standard example
+const VALID_KEY_1: &str = "AKIAIOSFODNN7EXAMPLE";  // Standard example
 const VALID_KEY_2: &str = "AKIA123456789ABCDEF0";  // 20 chars total
 const VALID_KEY_3: &str = "AKIAZZZZZZZZZZZZZZZZ";  // All Z's
 const VALID_KEY_4: &str = "AKIA000000000000000A";  // Mix of numbers/letters
 
 // AWS keys in various configurations
-aws_access_key_id = "***REMOVED***"
+aws_access_key_id = "AKIAIOSFODNN7EXAMPLE"
 AWS_ACCESS_KEY = "AKIA123456789ABCDEF0"
 "aws_access_key": "AKIAZZZZZZZZZZZZZZZZ"
 export AWS_ACCESS_KEY_ID="AKIA000000000000000A"
 
 // Edge cases that should NOT be detected
 const TOO_SHORT: &str = "AKIA123";              // Only 7 chars
-const TOO_LONG: &str = "***REMOVED***123"; // 23 chars
+const TOO_LONG: &str = "AKIAIOSFODNN7EXAMPLE123"; // 23 chars
 const WRONG_PREFIX: &str = "BKIAIOSFODNN7EXAMPLE"; // Wrong prefix
 const LOWERCASE: &str = "akiaiosfodnn7example";    // Lowercase
 const MIXED_CASE: &str = "AkIaIoSfOdNn7eXaMpLe";  // Mixed case
@@ -84,7 +84,7 @@ const NOT_AWS_3: &str = "AKIA"; // Just the prefix
         .map(|f| f.matched_text.as_str())
         .collect();
     
-    assert!(found_keys.contains(&"***REMOVED***"));
+    assert!(found_keys.contains(&"AKIAIOSFODNN7EXAMPLE"));
     assert!(found_keys.contains(&"AKIA123456789ABCDEF0"));
     assert!(found_keys.contains(&"AKIAZZZZZZZZZZZZZZZZ"));
     assert!(found_keys.contains(&"AKIA000000000000000A"));
@@ -191,7 +191,7 @@ fn test_aws_key_context_sensitivity() {
     let test_content = r#"
 # Configuration file formats
 [aws]
-access_key_id = ***REMOVED***
+access_key_id = AKIAIOSFODNN7EXAMPLE
 secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 
 # Environment variables
@@ -275,7 +275,7 @@ fn test_aws_key_false_negative_prevention() {
     let test_content = r#"
 // Keys that might be missed due to surrounding text
 let key1 = format!("AKIA{}", "IOSFODNN7EXAMPLE");
-let key2 = "prefix_***REMOVED***_suffix";
+let key2 = "prefix_AKIAIOSFODNN7EXAMPLE_suffix";
 let key3 = "AKIA" + "IOSFODNN7EXAMPLE";
 
 // Keys in unusual but valid contexts

@@ -3,7 +3,7 @@
 
 class ExampleAPI
   # Example AWS key (not real)
-  AWS_KEY = "***REMOVED***KEY"
+  AWS_KEY = "AKIAIOSFODNN7EXAMPLEKEY"
   
   # Example GitHub token
   GITHUB_TOKEN = "ghp_exampletoken1234567890abcdefghijklm"

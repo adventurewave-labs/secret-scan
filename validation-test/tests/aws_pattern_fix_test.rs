@@ -6,7 +6,7 @@ fn test_aws_access_key_pattern_matches_integration_test_data() {
     let aws_pattern = patterns.get("AWS Access Key").expect("AWS Access Key pattern should exist");
     
     // This is the exact line from the integration test that was failing
-    let test_line = r#"pub const AWS_ACCESS_KEY: &str = "***REMOVED***";"#;
+    let test_line = r#"pub const AWS_ACCESS_KEY: &str = "AKIAIOSFODNN7EXAMPLE";"#;
     
     // The pattern should match this line
     let result = aws_pattern.find(test_line);
@@ -16,14 +16,14 @@ fn test_aws_access_key_pattern_matches_integration_test_data() {
     let matched_text = matched.as_str();
     
     // The match should contain the key
-    assert!(matched_text.contains("***REMOVED***"), 
+    assert!(matched_text.contains("AKIAIOSFODNN7EXAMPLE"), 
            "Matched text should contain the test key: {}", matched_text);
     
     // Test other common formats too
     let test_cases = vec![
-        r#"AWS_ACCESS_KEY = "***REMOVED***""#,
-        r#"aws_access_key: "***REMOVED***""#,
-        r#"const AWS_ACCESS_KEY_ID: string = "***REMOVED***";"#,
+        r#"AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE""#,
+        r#"aws_access_key: "AKIAIOSFODNN7EXAMPLE""#,
+        r#"const AWS_ACCESS_KEY_ID: string = "AKIAIOSFODNN7EXAMPLE";"#,
     ];
     
     for test_case in test_cases {
@@ -38,7 +38,7 @@ fn test_aws_access_key_id_pattern_matches_direct_keys() {
     let aws_id_pattern = patterns.get("AWS Access Key ID").expect("AWS Access Key ID pattern should exist");
     
     // Test direct key matching
-    let direct_key = "***REMOVED***";
+    let direct_key = "AKIAIOSFODNN7EXAMPLE";
     let result = aws_id_pattern.find(direct_key);
     assert!(result.is_some(), "AWS Access Key ID pattern should match direct key");
     
@@ -56,7 +56,7 @@ fn test_aws_patterns_handle_mixed_case() {
     let mixed_case_keys = vec![
         "AKIAiosfodnn7example", // lowercase after AKIA
         "AKIAIoSfOdNn7ExAmPlE", // mixed case
-        "***REMOVED***", // all uppercase
+        "AKIAIOSFODNN7EXAMPLE", // all uppercase
     ];
     
     for key in mixed_case_keys {
@@ -79,7 +79,7 @@ fn test_aws_patterns_reject_invalid_keys() {
     // Keys that should NOT match
     let invalid_keys = vec![
         "AKIA123", // too short
-        "***REMOVED***EXTRALONGTEXTTHATSHOULDFAIL", // too long
+        "AKIAIOSFODNN7EXAMPLEEXTRALONGTEXTTHATSHOULDFAIL", // too long
         "BKIAIOSFODNN7EXAMPLE", // doesn't start with AKIA
         "AKIAiosfodnn7exampl", // too short (15 chars after AKIA)
     ];

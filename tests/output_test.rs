@@ -8,9 +8,9 @@ fn test_json_output_format() {
         Finding {
             file_path: PathBuf::from("/test/file1.txt"),
             line_number: 1,
-            line_content: "***REMOVED***".to_string(),
+            line_content: "AKIAIOSFODNN7EXAMPLE".to_string(),
             pattern_name: "AWS Access Key".to_string(),
-            matched_text: "***REMOVED***".to_string(),
+            matched_text: "AKIAIOSFODNN7EXAMPLE".to_string(),
             entropy: Some(4.2),
         },
         Finding {
@@ -50,9 +50,9 @@ fn test_text_output_format() {
     let findings = vec![Finding {
         file_path: PathBuf::from("/test/file1.txt"),
         line_number: 1,
-        line_content: "***REMOVED***".to_string(),
+        line_content: "AKIAIOSFODNN7EXAMPLE".to_string(),
         pattern_name: "AWS Access Key".to_string(),
-        matched_text: "***REMOVED***".to_string(),
+        matched_text: "AKIAIOSFODNN7EXAMPLE".to_string(),
         entropy: Some(4.2),
     }];
 
@@ -62,7 +62,7 @@ fn test_text_output_format() {
     assert!(text_output.contains("file1.txt"));
     assert!(text_output.contains("line 1"));
     assert!(text_output.contains("AWS Access Key"));
-    assert!(text_output.contains("***REMOVED***"));
+    assert!(text_output.contains("AKIAIOSFODNN7EXAMPLE"));
     assert!(text_output.contains("4.2"));
 }
 

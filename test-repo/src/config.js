@@ -1,14 +1,14 @@
 // Configuration file
 const config = {
   // AWS credentials
-  AWS_ACCESS_KEY_ID: "***REMOVED***",
+  AWS_ACCESS_KEY_ID: "AKIAIOSFODNN7EXAMPLE",
   AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
   
   // GitHub token
   GITHUB_TOKEN: "ghp_1234567890abcdefghijklmnopqrstuvwxyz",
   
   // Google API key
-  GOOGLE_API_KEY: "***REMOVED***",
+  GOOGLE_API_KEY: "AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI",
   
   // Database
   DATABASE_URL: "postgres://user:password@localhost:5432/mydb",

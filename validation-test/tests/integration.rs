@@ -24,7 +24,7 @@ fn test_end_to_end_secrets_detection() {
         temp_path.join("src/config.rs"),
         r#"
 pub const DATABASE_URL: &str = "postgres://user:pass@localhost/db";
-pub const AWS_ACCESS_KEY: &str = "***REMOVED***";
+pub const AWS_ACCESS_KEY: &str = "AKIAIOSFODNN7EXAMPLE";
 pub const API_ENDPOINT: &str = "https://api.example.com";
 "#,
     )
@@ -34,7 +34,7 @@ pub const API_ENDPOINT: &str = "https://api.example.com";
         temp_path.join("config/production.env"),
         r#"
 GITHUB_TOKEN=ghp_1234567890abcdefghijklmnopqrstuvwxyz
-GOOGLE_API_KEY=***REMOVED***
+GOOGLE_API_KEY=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI
 DATABASE_PASSWORD=secure_password_123
 "#,
     )
@@ -121,7 +121,7 @@ config/private.conf
     // Create ignored files with secrets
     fs::write(
         temp_path.join("secrets/prod.env"),
-        "AWS_ACCESS_KEY=***REMOVED***",
+        "AWS_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE",
     )
     .unwrap();
 
@@ -133,7 +133,7 @@ config/private.conf
 
     fs::write(
         temp_path.join("development.env"),
-        "GOOGLE_API_KEY=***REMOVED***",
+        "GOOGLE_API_KEY=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI",
     )
     .unwrap();
 
@@ -272,7 +272,7 @@ impl OAuthProvider {
     pub fn new() -> Self {
         Self {
             client_id: "public_client_id".to_string(),
-            client_secret: "***REMOVED***".to_string(), // This should be found
+            client_secret: "AKIAIOSFODNN7EXAMPLE".to_string(), // This should be found
         }
     }
 }
@@ -300,7 +300,7 @@ fn test_performance_with_large_files() {
         large_content.push_str(&format!("// Line {} with normal content\n", i));
         large_content.push_str(&format!("let variable_{} = \"some_value_{}\";\n", i, i));
     }
-    large_content.push_str("let aws_key = \"***REMOVED***\"; // Secret at the end\n");
+    large_content.push_str("let aws_key = \"AKIAIOSFODNN7EXAMPLE\"; // Secret at the end\n");
 
     fs::write(temp_path.join("large_file.rs"), large_content).unwrap();
 
@@ -363,7 +363,7 @@ fn test_context_filtering() {
     fs::write(
         temp_path.join("src/config.rs"),
         r#"
-pub const PROD_AWS_KEY: &str = "***REMOVED***";
+pub const PROD_AWS_KEY: &str = "AKIAIOSFODNN7EXAMPLE";
 pub const PROD_GITHUB_TOKEN: &str = "ghp_1234567890abcdefghijklmnopqrstuvwxyz";
 "#,
     )
@@ -445,7 +445,7 @@ let placeholder_key = "changeme";
             finding.file_path
         );
         assert!(
-            finding.matched_text.contains("***REMOVED***")
+            finding.matched_text.contains("AKIAIOSFODNN7EXAMPLE")
                 || finding
                     .matched_text
                     .contains("ghp_1234567890abcdefghijklmnopqrstuvwxyz"),

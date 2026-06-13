@@ -25,7 +25,7 @@ fn test_scan_directory_basic() {
 
     // Create a test file with a secret
     let test_file = temp_path.join("test.txt");
-    fs::write(&test_file, "***REMOVED***").unwrap();
+    fs::write(&test_file, "AKIAIOSFODNN7EXAMPLE").unwrap();
 
     let scanner = Scanner::new().unwrap();
     let findings = scanner.scan_directory(temp_path).unwrap();
@@ -52,7 +52,7 @@ fn test_scan_respects_gitignore() {
     fs::write(temp_path.join(".gitignore"), "ignored_file.txt\n").unwrap();
 
     // Create ignored file with secret
-    fs::write(temp_path.join("ignored_file.txt"), "***REMOVED***").unwrap();
+    fs::write(temp_path.join("ignored_file.txt"), "AKIAIOSFODNN7EXAMPLE").unwrap();
 
     // Create non-ignored file with secret
     fs::write(
@@ -81,7 +81,7 @@ fn test_scan_nested_directories() {
     // Create file in nested directory
     fs::write(
         nested_dir.join("config.rs"),
-        "let api_key = \"***REMOVED***\";",
+        "let api_key = \"AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI\";",
     )
     .unwrap();
 

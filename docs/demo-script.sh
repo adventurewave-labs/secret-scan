@@ -14,7 +14,7 @@ mkdir -p demo_project/src demo_project/config
 cd demo_project
 
 echo 'fn main() {
-    let api_key = "***REMOVED***"; // AWS key
+    let api_key = "AKIAIOSFODNN7EXAMPLE"; // AWS key
     println!("Starting application...");
 }' > src/main.rs
 
@@ -23,7 +23,7 @@ GITHUB_TOKEN=ghp_16C7e42F292c6912E7710c838347Ae178B4a
 STRIPE_KEY=sk_test_FAKE1234567890DEMO1234567890' > config/secrets.env
 
 echo '# Test file with mock credentials
-TEST_AWS_KEY=***REMOVED***
+TEST_AWS_KEY=AKIAIOSFODNN7EXAMPLE
 TEST_TOKEN=test_only_not_real' > src/test_secrets.rs
 
 echo ""
@@ -43,9 +43,9 @@ echo ""
 echo -e "\033[31mWarning: Found 5 potential secrets:\033[0m"
 echo ""
 echo -e "\033[33mFile: src/main.rs\033[0m"
-echo "line 2:     let api_key = \"***REMOVED***\"; // AWS key"
+echo "line 2:     let api_key = \"AKIAIOSFODNN7EXAMPLE\"; // AWS key"
 echo -e "Pattern: \033[31mAWS Access Key\033[0m"
-echo "Match: ***REMOVED***"
+echo "Match: AKIAIOSFODNN7EXAMPLE"
 echo "Entropy: 3.7"
 echo ""
 echo -e "\033[33mFile: config/secrets.env\033[0m"

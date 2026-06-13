@@ -111,9 +111,9 @@ Match: ghp_1234567890abcdefghijklmnopqrstuvwxyz
 Entropy: 5.2
 
 File: test-repo/src/config.js
-line 11: GOOGLE_API_KEY: "***REMOVED***",
+line 11: GOOGLE_API_KEY: "AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI",
 Pattern: Google API Key
-Match: ***REMOVED***
+Match: AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI
 Entropy: 4.7
 
 34 secrets found:

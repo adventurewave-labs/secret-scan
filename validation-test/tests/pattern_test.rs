@@ -6,7 +6,7 @@ fn test_aws_access_key_pattern() {
     let pattern = patterns.get("AWS Access Key").unwrap();
 
     // Valid AWS access keys
-    assert!(pattern.is_match("***REMOVED***"));
+    assert!(pattern.is_match("AKIAIOSFODNN7EXAMPLE"));
     assert!(pattern.is_match("AKIA1234567890ABCDEF"));
     assert!(pattern.is_match("AKIAJKLMNOPQRSTUVWXY"));
 
@@ -37,7 +37,7 @@ fn test_google_api_key_pattern() {
     let pattern = patterns.get("Google API Key").unwrap();
 
     // Valid Google API keys
-    assert!(pattern.is_match("***REMOVED***"));
+    assert!(pattern.is_match("AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI"));
     assert!(pattern.is_match("AIzaBCDEFGHIJKLMNOPQRSTUVWXYZ-1234567"));
     assert!(pattern.is_match("AIza1234567890abcdefghijklmnopqrstuvw_x"));
 
@@ -53,7 +53,7 @@ fn test_all_patterns_combined() {
 
     assert!(patterns.len() >= 3);
 
-    let test_text = "***REMOVED*** and ghp_1234567890abcdefghijklmnopqrstuvwxyz and ***REMOVED***";
+    let test_text = "AKIAIOSFODNN7EXAMPLE and ghp_1234567890abcdefghijklmnopqrstuvwxyz and AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI";
 
     let mut matches = 0;
     for (_name, pattern) in patterns.iter() {

@@ -108,7 +108,7 @@ fn test_scanning_performance_many_patterns() {
     // Create file with many different types of secrets to test all patterns
     let content = r#"
 // AWS secrets
-const AWS_ACCESS_KEY = "***REMOVED***";
+const AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE";
 const AWS_SECRET_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
 
 // GitHub secrets
@@ -116,7 +116,7 @@ const GITHUB_TOKEN = "ghp_1234567890abcdefghijklmnopqrstuvwxyz";
 const GITHUB_OAUTH = "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0";
 
 // Google secrets
-const GOOGLE_API_KEY = "***REMOVED***";
+const GOOGLE_API_KEY = "AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI";
 const GOOGLE_OAUTH = "123456789-abcdefghijklmnopqrstuvwx.apps.googleusercontent.com";
 
 // JWT tokens
@@ -285,7 +285,7 @@ fn create_file_with_few_secrets(dir: &std::path::Path) {
 const config = {
     api_url: "https://api.example.com",
     timeout: 5000,
-    secret_key: "***REMOVED***"
+    secret_key: "AKIAIOSFODNN7EXAMPLE"
 };
 "#;
     fs::write(dir.join("config.js"), content).unwrap();

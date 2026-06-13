@@ -163,7 +163,7 @@ validation-test/mock-repo/
 #### Advanced Test Data Characteristics
 
 **1. Multi-format Secret Representation:**
-- **Plaintext**: Direct secret strings (***REMOVED***)
+- **Plaintext**: Direct secret strings (AKIAIOSFODNN7EXAMPLE)
 - **Base64 Encoded**: Encoded secrets with detection (QUtJQUlPU0ZPRE5ON0VYQU1QTEU=)
 - **Hexadecimal**: Hex representation (7365637265742d6170692d6b6579)
 - **Character Arrays**: ASCII arrays ([115, 107, 45, 116, 101, 115, 116])
@@ -356,7 +356,7 @@ const config = {
             password: 'production_database_secret'
         },
         aws: {
-            accessKeyId: '***REMOVED***',
+            accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
             secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
         }
     }
@@ -1409,7 +1409,7 @@ Actual Non-Secret|        4         |         42          |
 
 **Base64 Detection Examples:**
 ```bash
-# Input: ***REMOVED***
+# Input: AKIAIOSFODNN7EXAMPLE
 # Encoded: QUtJQUlPU0ZPRE5ON0VYQU1QTEU=
 # Result: ✅ Detected as "AWS Access Key ID (Base64)"
 ```
@@ -1735,7 +1735,7 @@ Result: ⚠️ Not detected (exceeds pattern bounds)
 3. **Comment Placement**
    ```yaml
    # False Negative: Secret in comment with unusual formatting
-   #production:aws_key:***REMOVED***#development:disabled
+   #production:aws_key:AKIAIOSFODNN7EXAMPLE#development:disabled
    # Missed: Comment formatting breaks pattern matching
    ```
 

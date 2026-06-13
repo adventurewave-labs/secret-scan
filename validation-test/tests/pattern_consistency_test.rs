@@ -49,19 +49,19 @@ fn test_aws_access_key_pattern_variants() {
     // Test various AWS access key formats
     let test_cases = vec![
         // Standard AWS access key format
-        ("***REMOVED***", true, "Standard AWS access key"),
+        ("AKIAIOSFODNN7EXAMPLE", true, "Standard AWS access key"),
         ("AKIA123456789ABCDEF0", true, "20-character AWS access key"),
         
         // AWS access key in configuration
-        ("aws_access_key_id = ***REMOVED***", true, "AWS key in config"),
+        ("aws_access_key_id = AKIAIOSFODNN7EXAMPLE", true, "AWS key in config"),
         ("AWS_ACCESS_KEY=AKIA123456789ABCDEF0", true, "AWS key as env var"),
-        ("\"aws_access_key\": \"***REMOVED***\"", true, "AWS key in JSON"),
+        ("\"aws_access_key\": \"AKIAIOSFODNN7EXAMPLE\"", true, "AWS key in JSON"),
         
         // Invalid formats
         ("AKIA123", false, "Too short"),
         ("BKIAIOSFODNN7EXAMPLE", false, "Wrong prefix"),
         ("akia123456789abcdef0", false, "Lowercase"),
-        ("***REMOVED***123", false, "Too long"),
+        ("AKIAIOSFODNN7EXAMPLE123", false, "Too long"),
     ];
     
     for (test_input, should_match, description) in test_cases {
@@ -136,12 +136,12 @@ fn test_google_api_key_pattern() {
     
     let test_cases = vec![
         // Valid Google API keys
-        ("***REMOVED***", true, "Standard Google API key"),
+        ("AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI", true, "Standard Google API key"),
         ("AIzaBCDEFGHIJKLMNOPQRSTUVWXYZ1234567890", true, "Another valid key"),
         
         // In configuration
-        ("GOOGLE_API_KEY=***REMOVED***", true, "In environment"),
-        ("google_api_key: ***REMOVED***", true, "In YAML"),
+        ("GOOGLE_API_KEY=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI", true, "In environment"),
+        ("google_api_key: AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI", true, "In YAML"),
         
         // Invalid formats
         ("AIza123", false, "Too short"),

@@ -174,7 +174,7 @@ Successfully validated detection of all documented secret types:
 
 ### Cloud Provider Keys ✅
 - AWS Access Keys: ✅ Detected (AKIAIOSFODNN7TESTKEY, AKIAIOSFODNN7PRODKEY)
-- Google Cloud API Keys: ✅ Detected (***REMOVED***)
+- Google Cloud API Keys: ✅ Detected (AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI)
 - Azure Keys: ✅ Pattern support confirmed
 
 ### Version Control Tokens ✅
