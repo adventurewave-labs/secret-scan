@@ -1,0 +1,3 @@
+# Mark Makefile as non-primary so GitHub Linguist detects Rust
+Makefile linguist-detectable=false
+*.mk linguist-detectable=false
