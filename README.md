@@ -1,5 +1,11 @@
 # secretscan 🔍 v0.2.1
 
+[![Crates.io](https://img.shields.io/crates/v/secretscan.svg)](https://crates.io/crates/secretscan)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Build](https://github.com/adventurewave-labs/secret-scan/actions/workflows/ci.yml/badge.svg)](https://github.com/adventurewave-labs/secret-scan/actions)
+
+> ⭐ If secret-scan saves your repo from a leaked key, [a star helps others find it](https://github.com/adventurewave-labs/secret-scan).
+
 [![CI](https://github.com/marcuspat/secret-scan/workflows/CI/badge.svg)](https://github.com/marcuspat/secret-scan/actions)
 [![Crates.io](https://img.shields.io/crates/v/secretscan.svg)](https://crates.io/crates/secretscan)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
@@ -18,6 +24,10 @@ A fast secret scanner for your codebase. secretscan helps you find and remediate
 - **🚫 GitIgnore Support**: Respects `.gitignore` patterns automatically
 - **🧪 Production Ready**: 100% test coverage with comprehensive validation
 - **🔍 Advanced Detection**: Supports obfuscated secrets (Base64, Hex, Character Arrays)
+
+## Demo
+
+> 📹 **Demo GIF coming soon.** Capture with [`vhs`](https://github.com/charmbracelet/vhs) or `asciinema` + [`agg`](https://github.com/asciinema/agg): run `secretscan /path/to/repo` on a test repo to show the 51k files/sec scan and detection output.
 
 ## 🛠️ Installation
 
@@ -261,6 +271,15 @@ First secret scanner to reliably detect:
 | Test File Filtering | ✅ Yes | ❌ No | ❌ No | ✅ Yes |
 | Obfuscation Detection | ✅ Advanced | ❌ No | ❌ No | ❌ No |
 | Installation | Single binary | pip + deps | git + bash | pip + deps |
+
+## Ecosystem
+
+| Repo | What it does |
+|------|-------------|
+| [**codescope**](https://github.com/adventurewave-labs/codescope) | Rust code-intelligence engine for AI agents — no cloud, no DB |
+| [**Sentinel**](https://github.com/marcuspat/Sentinel) | Deny-by-default agentic sysadmin: Investigate → Plan → Approve → Act |
+| [**netrain**](https://github.com/marcuspat/netrain) | Matrix-style network monitor — 212x faster packet parsing in Rust |
+| [**turbo-flow**](https://github.com/adventurewave-labs/turbo-flow) | Agentic dev environment — 600+ AI subagents, SPARC methodology |
 
 ## 🤝 Contributing
 
