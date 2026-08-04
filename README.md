@@ -279,7 +279,7 @@ First secret scanner to reliably detect:
 | [**codescope**](https://github.com/adventurewave-labs/codescope) | Rust code-intelligence engine for AI agents — no cloud, no DB |
 | [**Sentinel**](https://github.com/marcuspat/Sentinel) | Deny-by-default agentic sysadmin: Investigate → Plan → Approve → Act |
 | [**netrain**](https://github.com/marcuspat/netrain) | Matrix-style network monitor — 212x faster packet parsing in Rust |
-| [**turbo-flow**](https://github.com/adventurewave-labs/turbo-flow) | Agentic dev environment — 600+ AI subagents, SPARC methodology |
+| [**turbo-flow**](https://github.com/adventurewave-labs/turbo-flow) | Agentic dev environment — 60+ AI subagents, SPARC methodology |
 
 ## 🤝 Contributing
 
