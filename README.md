@@ -6,11 +6,6 @@
 
 > ⭐ If secret-scan saves your repo from a leaked key, [a star helps others find it](https://github.com/adventurewave-labs/secret-scan).
 
-[![CI](https://github.com/marcuspat/secret-scan/workflows/CI/badge.svg)](https://github.com/marcuspat/secret-scan/actions)
-[![Crates.io](https://img.shields.io/crates/v/secretscan.svg)](https://crates.io/crates/secretscan)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=flat&logo=rust&logoColor=white)](https://www.rust-lang.org)
-
 A fast secret scanner for your codebase. secretscan helps you find and remediate exposed credentials, API keys, and sensitive information before they become security vulnerabilities.
 
 ## ✨ Features
@@ -27,7 +22,7 @@ A fast secret scanner for your codebase. secretscan helps you find and remediate
 
 ## Demo
 
-> 📹 **Demo GIF coming soon.** Capture with [`vhs`](https://github.com/charmbracelet/vhs) or `asciinema` + [`agg`](https://github.com/asciinema/agg): run `secretscan /path/to/repo` on a test repo to show the 51k files/sec scan and detection output.
+> 📹 **Demo GIF coming soon.** Capture with [`vhs`](https://github.com/charmbracelet/vhs) or `asciinema` + [`agg`](https://github.com/asciinema/agg): run `secretscan /path/to/repo` on a test repo to show the scan and detection output.
 
 ## 🛠️ Installation
 
@@ -39,7 +34,7 @@ cargo install secretscan
 
 ### Pre-built Binaries
 
-Download pre-built binaries from the [latest release](https://github.com/marcuspat/secret-scan/releases/latest):
+Download pre-built binaries from the [latest release](https://github.com/adventurewave-labs/secret-scan/releases/latest):
 
 - Linux: `secretscan-v0.2.1-x86_64-unknown-linux-gnu.tar.gz`
 - macOS: `secretscan-v0.2.1-x86_64-apple-darwin.tar.gz`
@@ -48,7 +43,7 @@ Download pre-built binaries from the [latest release](https://github.com/marcusp
 ### From Source
 
 ```bash
-git clone https://github.com/marcuspat/secret-scan.git
+git clone https://github.com/adventurewave-labs/secret-scan.git
 cd secret-scan
 cargo install --path .
 ```
@@ -198,34 +193,38 @@ SecretScanner automatically respects `.gitignore` patterns for file exclusion. T
 
 ## 📊 Performance
 
-**Blazing fast: Scans 51,020 files/second with 99% detection accuracy** 🚀
+**Measured throughput (see [validation report](./SECRET_SCAN_VALIDATION_REPORT.md)): up to 1,222 files/sec on small files** 🚀
 
-secretscan leverages Rust's zero-cost abstractions, parallel processing, and advanced pattern recognition for exceptional performance:
+secretscan leverages Rust's zero-cost abstractions, parallel processing, and advanced pattern recognition. Figures below are the actual benchmarks from the linked validation report, not extrapolated:
 
-| Repository Size | Files | Scan Time | Throughput | CPU Usage |
-|----------------|-------|-----------|------------|-----------|
-| Small Project  | 51    | 0.024s    | 2,125 files/sec | 79% |
-| Medium Project | 1,000 | 0.020s    | 50,000 files/sec | 120% |
-| Large Codebase | 10,000| 0.196s    | 51,020 files/sec | 155% |
-| Massive Repo   | 100,000| 2.45s    | 40,816 files/sec | 177% |
+| Scenario | Files | Avg Scan Time | Throughput |
+|----------|-------|-----------|------------|
+| Small files (100 files, 5 runs) | 100 | 0.088s | 1,222 files/sec (2,272 secrets/sec) |
+| Deep directory traversal (3 levels, 75 files) | 75 | 0.159s | 471 files/sec |
+| Large files (10 files, 100KB each) | 10 | 0.343s | 2.91 MB/sec (364 secrets/sec) |
+
+*Note: an earlier version of this README cited "51,020 files/sec" — that figure does not appear anywhere in the validation report and could not be reproduced from it. Corrected to the report's actual measured numbers above.*
 
 ### Key Performance Features
 - **Binary size**: 3.7 MB (standalone executable, no runtime dependencies)
-- **Excellent parallelization**: Up to 177% CPU usage on multi-core systems
 - **Memory efficient**: Linear memory growth, ~1MB per 1,000 files
 - **Zero startup overhead**: Instant execution, no JVM or interpreter
 - **Optimized I/O**: Parallel file reading with buffer pooling
 
-*Benchmarked on 8-core system with NVMe SSD*
+*Benchmarked on an 8-core system; see the validation report for full methodology.*
 
 ## 🎯 Accuracy
 
-secretscan provides **industry-leading detection capabilities** with cutting-edge obfuscation detection:
+secretscan's validation report measured the following against its test corpus:
 
-- **Detection rate**: **99%** (647 out of ~650 secrets detected in advanced test repos)
-- **False positive rate**: < 1% (intelligent context filtering)
+- **Recall (detection rate)**: 95.2% (94.0–96.4% at 95% CI)
+- **Precision**: 98.2%
+- **F1-score**: 96.7%
+- **False positive rate**: 2.1% (±0.4%)
 - **Obfuscation detection**: Base64, Hex, URL encoding, character arrays
 - **Smart filtering**: Production vs test environment awareness
+
+*Note: an earlier version of this README cited a flat "99% detection accuracy" — that number appears in the validation report only as a confidence-interval label, not as a measured accuracy result. Corrected to the report's actual recall/precision/F1 figures above.*
 
 ### Detection Capabilities
 - ✅ **Production secrets**: Config files, environment variables, connection strings  
@@ -236,15 +235,6 @@ secretscan provides **industry-leading detection capabilities** with cutting-edg
 - ✅ **Multiple formats**: 50+ file types including .txt, config files
 - ✅ **Advanced patterns**: 50 comprehensive secret patterns
 - ❌ **Intelligently filtered**: Test fixtures, examples, dummy data
-
-### Enterprise-Grade Test Results
-Advanced test repository (647 secrets detected):
-- **Cloud Credentials**: 55 AWS keys, Azure tenant IDs, GCP tokens
-- **API Keys**: 17 Stripe keys, 4 SendGrid, 15 GitHub OAuth tokens  
-- **Database Secrets**: 37 connection strings (PostgreSQL, MySQL, MongoDB, Redis)
-- **Passwords**: 83 environment variables, 19 JSON/YAML passwords
-- **Obfuscated**: 64 Base64 encoded secrets, URL encoded connections
-- **OAuth**: 71 client secrets and IDs across multiple providers
 
 ### Breakthrough: Obfuscation Detection
 First secret scanner to reliably detect:
@@ -260,12 +250,12 @@ First secret scanner to reliably detect:
 | Feature | secretscan | truffleHog | git-secrets | detect-secrets |
 |---------|------------|------------|-------------|----------------|
 | Language | Rust | Python | Bash | Python |
-| Speed | ⚡ 51,020 files/sec | 🐌 100 files/sec | 🏃 1,000 files/sec | 🐌 200 files/sec |
+| Speed | ⚡ up to 1,222 files/sec (measured) | 🐌 100 files/sec | 🏃 1,000 files/sec | 🐌 200 files/sec |
 | Binary Size | 3.7MB | 50MB+ | N/A (bash) | 20MB+ |
 | Memory Usage | < 100MB | 500MB+ | < 50MB | 300MB+ |
 | GitIgnore Support | ✅ Built-in | ✅ Yes | ❌ No | ✅ Yes |
 | Entropy Analysis | ✅ Yes | ✅ Yes | ❌ No | ✅ Yes |
-| False Positive Rate | < 1% | ~15% | ~20% | ~10% |
+| False Positive Rate | < 3% | ~15% | ~20% | ~10% |
 | Parallel Processing | ✅ Native | ❌ No | ❌ No | ❌ No |
 | JSON Output | ✅ Yes | ✅ Yes | ❌ No | ✅ Yes |
 | Test File Filtering | ✅ Yes | ❌ No | ❌ No | ✅ Yes |
@@ -278,7 +268,7 @@ First secret scanner to reliably detect:
 |------|-------------|
 | [**codescope**](https://github.com/adventurewave-labs/codescope) | Rust code-intelligence engine for AI agents — no cloud, no DB |
 | [**Sentinel**](https://github.com/marcuspat/Sentinel) | Deny-by-default agentic sysadmin: Investigate → Plan → Approve → Act |
-| [**netrain**](https://github.com/marcuspat/netrain) | Matrix-style network monitor — 212x faster packet parsing in Rust |
+| [**netrain**](https://github.com/marcuspat/netrain) | Matrix-style network monitor in Rust |
 | [**turbo-flow**](https://github.com/adventurewave-labs/turbo-flow) | Agentic dev environment — 60+ AI subagents, SPARC methodology |
 
 ## 🤝 Contributing
@@ -289,7 +279,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ```bash
 # Clone the repository
-git clone https://github.com/marcuspat/secret-scan.git
+git clone https://github.com/adventurewave-labs/secret-scan.git
 cd secret-scan
 
 # Run tests
@@ -318,7 +308,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- 🐛 Issues: [GitHub Issues](https://github.com/marcuspat/secret-scan/issues)
+- 🐛 Issues: [GitHub Issues](https://github.com/adventurewave-labs/secret-scan/issues)
 
 ---
 
