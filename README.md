@@ -7,6 +7,12 @@
 
 A fast secret scanner for your codebase. secretscan helps you find and remediate exposed credentials, API keys, and sensitive information before they become security vulnerabilities.
 
+## 🎬 Demo
+
+![secretscan finding 6 planted secrets in a demo repo](docs/secretscan-demo.gif)
+
+*Recorded from the actual binary with [asciinema](https://asciinema.org) + [agg](https://github.com/asciinema/agg) — all secrets shown are documentation examples.*
+
 ## ✨ Features
 
 - **🚀 Lightning Fast**: Parallel scanning with Rayon for maximum performance (~0.3s scan time)
