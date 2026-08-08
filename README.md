@@ -2,7 +2,6 @@
 
 [![Crates.io](https://img.shields.io/crates/v/secretscan.svg)](https://crates.io/crates/secretscan)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Build](https://github.com/adventurewave-labs/secret-scan/actions/workflows/ci.yml/badge.svg)](https://github.com/adventurewave-labs/secret-scan/actions)
 
 > ⭐ If secret-scan saves your repo from a leaked key, [a star helps others find it](https://github.com/adventurewave-labs/secret-scan).
 
