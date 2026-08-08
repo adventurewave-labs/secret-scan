@@ -5,16 +5,22 @@ use base64::{Engine as _, engine::general_purpose};
 
 lazy_static! {
     // AWS Patterns
-    static ref AWS_ACCESS_KEY: Regex = Regex::new(r#"(?i)(aws[_\s\-]?access[_\s\-]?key[_\s\-]?(id)?|AKIA)["']?\s*[:=]\s*[^"']*["']([A-Za-z0-9]{16,20})["']"#).unwrap();
-    static ref AWS_SECRET_KEY: Regex = Regex::new(r#"(?i)(aws[_\s\-]?secret[_\s\-]?(access[_\s\-]?)?key)["']?\s*[:=]\s*["']?([A-Za-z0-9/+=]{40})["']?"#).unwrap();
-    static ref AWS_ACCESS_KEY_ID: Regex = Regex::new(r"(?i)AKIA[0-9A-Za-z]{16}").unwrap();
+    // Contextual assignment form: aws-named variable = key (quoted or bare).
+    static ref AWS_ACCESS_KEY: Regex = Regex::new(r#"(?i)(aws[_\s\-]?access[_\s\-]?key[_\s\-]?(id)?)["']?\s*[:=]\s*[^"'\n]*?["']?(AKIA[0-9A-Z]{16})["']?"#).unwrap();
+    // Secret keys: aws-prefixed names or the canonical secret_access_key, quoted or bare value.
+    static ref AWS_SECRET_KEY: Regex = Regex::new(r#"(?i)(aws[_\-]?secret[a-z0-9_\-]*|secret[_\-]?access[_\-]?key)["']?\s*[:=]\s*(?:[^"'\n]*["']([A-Za-z0-9/+=]{40})["']|([A-Za-z0-9/+=]{40}))"#).unwrap();
+    // Bare key format: AKIA + exactly 16 uppercase alphanumerics. AWS key IDs are
+    // case-sensitive; the old (?i) version reported strings that cannot be live keys.
+    static ref AWS_ACCESS_KEY_ID: Regex = Regex::new(r"AKIA[0-9A-Z]{16}\b").unwrap();
     
     // GitHub Patterns
-    static ref GITHUB_TOKEN: Regex = Regex::new(r"(ghp|gho|ghu|ghs|ghr)_[0-9A-Za-z]{36,}").unwrap();
-    static ref GITHUB_OAUTH: Regex = Regex::new(r"[0-9a-f]{40}").unwrap();
+    static ref GITHUB_TOKEN: Regex = Regex::new(r"\bghp_[0-9A-Za-z]{36,}").unwrap();
+    // OAuth/user/server/refresh tokens. (Previously a bare 40-hex regex that matched
+    // every git SHA in sight.)
+    static ref GITHUB_OAUTH: Regex = Regex::new(r"\bgh[ousr]_[0-9A-Za-z]{36,}").unwrap();
     
     // Google Patterns
-    static ref GOOGLE_API_KEY: Regex = Regex::new(r"AIza[0-9A-Za-z\-_]{35}").unwrap();
+    static ref GOOGLE_API_KEY: Regex = Regex::new(r"\bAIza[0-9A-Za-z\-_]{33,}").unwrap();
     static ref GOOGLE_OAUTH: Regex = Regex::new(r"[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com").unwrap();
     
     // JWT Pattern

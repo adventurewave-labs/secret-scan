@@ -1,5 +1,18 @@
+use lazy_static::lazy_static;
 use regex::Regex;
 use std::path::Path;
+
+/// True when `text` has the exact shape of a live credential (AWS key ID,
+/// GitHub token, Google API key, or an explicit secret_access_key assignment).
+pub fn is_high_confidence_format(text: &str) -> bool {
+    HIGH_CONFIDENCE_SECRET.is_match(text)
+}
+
+lazy_static! {
+    static ref HIGH_CONFIDENCE_SECRET: Regex = Regex::new(
+        r"AKIA[0-9A-Z]{16}\b|\bgh[pousr]_[0-9A-Za-z]{36,}|\bAIza[0-9A-Za-z_\-]{33,}|(?i)(aws[_\-]?secret|secret[_\-]?access[_\-]?key)\S*\s*[:=][^\n]*[A-Za-z0-9/+=]{40}"
+    ).unwrap();
+}
 
 /// Configuration for context filtering to reduce false positives
 #[derive(Debug, Clone)]
@@ -91,6 +104,14 @@ impl ContextFilter {
     /// Check if a line should be skipped based on variable name filtering rules
     pub fn should_skip_line(&self, line: &str, matched_text: &str) -> bool {
         if !self.skip_test_variables {
+            return false;
+        }
+
+        // High-confidence secret formats are always reported. A string with the exact
+        // shape of a live credential (AWS key ID, GitHub token, Google API key, or an
+        // explicit *secret_access_key* assignment) is worth surfacing even when the
+        // surrounding line looks like test code — the format itself is the signal.
+        if HIGH_CONFIDENCE_SECRET.is_match(matched_text) {
             return false;
         }
 
