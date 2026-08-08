@@ -137,8 +137,8 @@ sys     0m0.003s
 
 ## ✅ Validation Status
 
-**Latest Validation Results** (v0.2.1):
-- ✅ **All Tests Passing**: 24/24 tests (100% success rate)
+**Latest Validation Results** (current `main`):
+- ✅ **All Tests Passing**: 65/65 tests (100% success rate)
 - ✅ **Integration Tests**: 12/12 passing 
 - ✅ **Performance**: Average scan time 0.305 seconds
 - ✅ **Detection Capability**: 105+ secrets across 30+ pattern types
