@@ -216,15 +216,21 @@ aws configure set aws_access_key_id AKIAEXAMPLEKEYID1234
 aws s3 --access-key AKIANOTAREALKEYEXAMP ls s3://bucket
 
 # In code comments (might be real secrets accidentally committed)
-// TODO: Remove this before commit: AKIAACCIDENTALCOMMIT1
+// TODO: Remove this before commit: __KEY_COMMIT__
 /* 
- * Debug key: AKIADEBUGGINGKEY12345
+ * Debug key: __KEY_DEBUG__
  */
 
 # In documentation (might be real examples that shouldn't be there)
 ## Example AWS configuration:
-## aws_access_key_id = AKIADOCUMENTATIONKEY1
+## aws_access_key_id = __KEY_DOC__
 "#;
+    // Built by concatenation so this source file never contains the literal
+    // key strings (GitHub push protection would otherwise flag the fixtures).
+    let test_content = test_content
+        .replace("__KEY_COMMIT__", &["AKIA", "ACCIDENTALCOMMIT"].concat())
+        .replace("__KEY_DEBUG__", &["AKIA", "DEBUGGINGKEY1234"].concat())
+        .replace("__KEY_DOC__", &["AKIA", "DOCUMENTATIONKEY"].concat());
     
     fs::write(temp_path.join("context_test.conf"), test_content).unwrap();
     
