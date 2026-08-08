@@ -82,7 +82,67 @@ impl Scanner {
     }
 
     pub fn scan_directory(&self, path: &Path) -> Result<Vec<Finding>, ScannerError> {
-        self.scan_directory_optimized(path)
+        let mut findings = self.scan_directory_optimized(path)?;
+        Self::dedupe_overlapping_findings(&mut findings);
+        Ok(findings)
+    }
+
+    /// Remove redundant findings that describe the same secret on the same line.
+    ///
+    /// Three surgical rules, applied per (file, line):
+    ///   1. Generic catch-all patterns (Suspicious Base64/Hex, Generic Secret, …) are
+    ///      dropped when a specific pattern already matched overlapping text.
+    ///   2. "Firebase API Key" is dropped when "Google API Key" matched the identical
+    ///      text — the two formats are byte-identical (Firebase keys ARE Google keys).
+    ///   3. The contextual "AWS Access Key" match is dropped when the bare
+    ///      "AWS Access Key ID" already reported the key it contains.
+    fn dedupe_overlapping_findings(findings: &mut Vec<Finding>) {
+        const GENERIC: [&str; 5] = [
+            "Suspicious Base64",
+            "Suspicious Hex",
+            "Generic Secret",
+            "Generic OAuth Secret",
+            "Generic Client ID",
+        ];
+        let snapshot: Vec<(std::path::PathBuf, usize, String, String)> = findings
+            .iter()
+            .map(|f| (f.file_path.clone(), f.line_number, f.pattern_name.clone(), f.matched_text.clone()))
+            .collect();
+        findings.retain(|f| {
+            let same_line = |other: &(std::path::PathBuf, usize, String, String)| {
+                other.0 == f.file_path && other.1 == f.line_number
+            };
+            // Rule 1: drop generic finding overlapped by any specific finding
+            if GENERIC.contains(&f.pattern_name.as_str()) {
+                let overlapped = snapshot.iter().any(|o| {
+                    same_line(o)
+                        && !GENERIC.contains(&o.2.as_str())
+                        && (f.matched_text.contains(&o.3) || o.3.contains(&f.matched_text))
+                });
+                if overlapped {
+                    return false;
+                }
+            }
+            // Rule 2: Firebase shadowed by identical Google match
+            if f.pattern_name == "Firebase API Key" {
+                let shadowed = snapshot
+                    .iter()
+                    .any(|o| same_line(o) && o.2 == "Google API Key" && o.3 == f.matched_text);
+                if shadowed {
+                    return false;
+                }
+            }
+            // Rule 3: contextual AWS match shadowed by the bare key it contains
+            if f.pattern_name == "AWS Access Key" {
+                let shadowed = snapshot.iter().any(|o| {
+                    same_line(o) && o.2 == "AWS Access Key ID" && f.matched_text.contains(&o.3)
+                });
+                if shadowed {
+                    return false;
+                }
+            }
+            true
+        });
     }
 
     /// Optimized parallel scanning with rayon
@@ -713,6 +773,13 @@ impl Scanner {
     
     /// Static version of entropy filtering for use in parallel processing
     fn should_include_by_entropy_static(pattern_name: &str, matched_text: &str, entropy: f64, line: &str) -> bool {
+        // Format-exact credentials (AKIA…, ghp_…, AIza…, secret_access_key=…) are
+        // reported regardless of entropy: the format is the signal, and real keys
+        // can be low-entropy (e.g. mostly-numeric AWS key IDs).
+        if crate::context::is_high_confidence_format(matched_text) {
+            return true;
+        }
+
         // Pattern-specific entropy thresholds
         let entropy_threshold = match pattern_name {
             // High-entropy patterns that should always be included

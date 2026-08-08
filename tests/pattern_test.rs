@@ -3,7 +3,9 @@ use secretscan::patterns::*;
 #[test]
 fn test_aws_access_key_pattern() {
     let patterns = get_all_patterns();
-    let pattern = patterns.get("AWS Access Key").unwrap();
+    // Bare key format lives under "AWS Access Key ID"; "AWS Access Key" is the
+    // contextual assignment pattern.
+    let pattern = patterns.get("AWS Access Key ID").unwrap();
 
     // Valid AWS access keys
     assert!(pattern.is_match("AKIAIOSFODNN7EXAMPLE"));
@@ -56,7 +58,12 @@ fn test_all_patterns_combined() {
     let test_text = "AKIAIOSFODNN7EXAMPLE and ghp_1234567890abcdefghijklmnopqrstuvwxyz and AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI";
 
     let mut matches = 0;
-    for (_name, pattern) in patterns.iter() {
+    for (name, pattern) in patterns.iter() {
+        // "Firebase API Key" intentionally aliases the Google API key format
+        // (Firebase keys ARE Google keys); don't double-count it here.
+        if name == "Firebase API Key" {
+            continue;
+        }
         if pattern.is_match(test_text) {
             matches += 1;
         }

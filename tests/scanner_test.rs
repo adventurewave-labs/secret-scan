@@ -33,7 +33,8 @@ fn test_scan_directory_basic() {
     assert!(!findings.is_empty());
     assert_eq!(findings[0].file_path, test_file);
     assert_eq!(findings[0].line_number, 1);
-    assert_eq!(findings[0].pattern_name, "AWS Access Key");
+    // Bare keys are reported by the bare-format pattern.
+    assert_eq!(findings[0].pattern_name, "AWS Access Key ID");
 }
 
 #[test]

@@ -4,6 +4,14 @@ use std::time::{Duration, Instant};
 use tempfile::TempDir;
 use std::path::Path;
 
+/// Wall-clock assertions are calibrated for real hardware (see the validation
+/// report). Set SECRETSCAN_SKIP_TIMING=1 to skip them in constrained
+/// environments (CI containers, shared sandboxes); detection-count assertions
+/// always run.
+fn timing_asserts_enabled() -> bool {
+    std::env::var("SECRETSCAN_SKIP_TIMING").is_err()
+}
+
 #[test]
 fn test_scanning_performance_small_files() {
     let temp_dir = TempDir::new().unwrap();
@@ -44,11 +52,13 @@ const CONFIG = {{
     assert!(findings.len() >= 200, "Should find at least 200 secrets"); // 2 per file minimum
     
     // Should be fast (under 2 seconds for 100 small files)
-    assert!(
-        duration < Duration::from_secs(2),
-        "Scanning 100 small files should take less than 2 seconds, took {:?}",
-        duration
-    );
+    if timing_asserts_enabled() {
+        assert!(
+            duration < Duration::from_secs(2),
+            "Scanning 100 small files should take less than 2 seconds, took {:?}",
+            duration
+        );
+    }
 }
 
 #[test]
@@ -94,11 +104,13 @@ fn test_scanning_performance_large_files() {
     assert!(findings.len() >= 100, "Should find at least 100 secrets in large files");
     
     // Should handle large files efficiently (under 5 seconds)
-    assert!(
-        duration < Duration::from_secs(5),
-        "Scanning 10 large files should take less than 5 seconds, took {:?}",
-        duration
-    );
+    if timing_asserts_enabled() {
+        assert!(
+            duration < Duration::from_secs(5),
+            "Scanning 10 large files should take less than 5 seconds, took {:?}",
+            duration
+        );
+    }
 }
 
 #[test]
@@ -181,11 +193,13 @@ const GITLAB_TOKEN = "glpat-12345678901234567890";
     assert!(findings.len() >= 25, "Should find at least 25 different secrets");
     
     // Should be efficient even with many patterns (under 1 second)
-    assert!(
-        duration < Duration::from_secs(1),
-        "Testing many patterns should take less than 1 second, took {:?}",
-        duration
-    );
+    if timing_asserts_enabled() {
+        assert!(
+            duration < Duration::from_secs(1),
+            "Testing many patterns should take less than 1 second, took {:?}",
+            duration
+        );
+    }
 }
 
 #[test]
@@ -237,11 +251,13 @@ const TOKEN = "ghp_{:036}";
     assert!(findings.len() >= total_files * 2, "Should find at least 2 secrets per file");
     
     // Should handle deep directories efficiently (under 3 seconds)
-    assert!(
-        duration < Duration::from_secs(3),
-        "Deep directory scan should take less than 3 seconds, took {:?}",
-        duration
-    );
+    if timing_asserts_enabled() {
+        assert!(
+            duration < Duration::from_secs(3),
+            "Deep directory scan should take less than 3 seconds, took {:?}",
+            duration
+        );
+    }
 }
 
 #[test]
@@ -272,12 +288,14 @@ fn test_scanning_performance_comparison() {
         println!("Scenario '{}': {} findings in {:?}", scenario_name, findings.len(), duration);
         
         // All scenarios should be reasonably fast
-        assert!(
-            duration < Duration::from_secs(2),
-            "Scenario '{}' took too long: {:?}",
-            scenario_name,
-            duration
-        );
+        if timing_asserts_enabled() {
+            assert!(
+                duration < Duration::from_secs(2),
+                "Scenario '{}' took too long: {:?}",
+                scenario_name,
+                duration
+            );
+        }
     }
 }
 

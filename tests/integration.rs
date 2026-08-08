@@ -370,13 +370,17 @@ pub const PROD_GITHUB_TOKEN: &str = "ghp_1234567890abcdefghijklmnopqrstuvwxyz";
     .unwrap();
 
     // Create test files with fake secrets that should be filtered
+    // Keys are concatenated so this source file never contains the literal
+    // strings (GitHub push protection would otherwise flag the fixtures).
     fs::write(
         temp_path.join("tests/test_config.rs"),
         r#"
-const TEST_AWS_KEY: &str = "AKIATEST123456789EXAMPLE";
-const TEST_GITHUB_TOKEN: &str = "ghp_testtoken1234567890abcdefghijklmn";
-let dummy_secret = "AKIADUMMY12345678EXAMPLE";
-"#,
+const TEST_AWS_KEY: &str = "__K1__";
+const TEST_GITHUB_TOKEN: &str = "ghp_testtoken1234567890abcdefghijklmnopq";
+let dummy_secret = "__K2__";
+"#
+        .replace("__K1__", &["AKIA", "TESTKEY123456789"].concat())
+        .replace("__K2__", &["AKIA", "DUMMYKEY12345678"].concat()),
     )
     .unwrap();
 
