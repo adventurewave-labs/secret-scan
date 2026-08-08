@@ -17,7 +17,6 @@ A fast secret scanner for your codebase. secretscan helps you find and remediate
 - **🌈 Beautiful Output**: Colored terminal output with progress indicators
 - **📊 Multiple Formats**: JSON and text output formats
 - **🚫 GitIgnore Support**: Respects `.gitignore` patterns automatically
-- **🧪 Production Ready**: 100% test coverage with comprehensive validation
 - **🔍 Advanced Detection**: Supports obfuscated secrets (Base64, Hex, Character Arrays)
 
 ## 🛠️ Installation
