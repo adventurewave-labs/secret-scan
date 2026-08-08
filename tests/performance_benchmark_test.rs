@@ -2,6 +2,7 @@ use secretscan::Scanner;
 use std::fs;
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
+use std::path::Path;
 
 #[test]
 fn test_scanning_performance_small_files() {
