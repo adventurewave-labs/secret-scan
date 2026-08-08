@@ -2,7 +2,6 @@
 
 [![Crates.io](https://img.shields.io/crates/v/secretscan.svg)](https://crates.io/crates/secretscan)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Build](https://github.com/adventurewave-labs/secret-scan/actions/workflows/ci.yml/badge.svg)](https://github.com/adventurewave-labs/secret-scan/actions)
 
 > ⭐ If secret-scan saves your repo from a leaked key, [a star helps others find it](https://github.com/adventurewave-labs/secret-scan).
 
@@ -17,12 +16,7 @@ A fast secret scanner for your codebase. secretscan helps you find and remediate
 - **🌈 Beautiful Output**: Colored terminal output with progress indicators
 - **📊 Multiple Formats**: JSON and text output formats
 - **🚫 GitIgnore Support**: Respects `.gitignore` patterns automatically
-- **🧪 Production Ready**: 100% test coverage with comprehensive validation
 - **🔍 Advanced Detection**: Supports obfuscated secrets (Base64, Hex, Character Arrays)
-
-## Demo
-
-> 📹 **Demo GIF coming soon.** Capture with [`vhs`](https://github.com/charmbracelet/vhs) or `asciinema` + [`agg`](https://github.com/asciinema/agg): run `secretscan /path/to/repo` on a test repo to show the scan and detection output.
 
 ## 🛠️ Installation
 
