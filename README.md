@@ -20,10 +20,6 @@ A fast secret scanner for your codebase. secretscan helps you find and remediate
 - **🧪 Production Ready**: 100% test coverage with comprehensive validation
 - **🔍 Advanced Detection**: Supports obfuscated secrets (Base64, Hex, Character Arrays)
 
-## Demo
-
-> 📹 **Demo GIF coming soon.** Capture with [`vhs`](https://github.com/charmbracelet/vhs) or `asciinema` + [`agg`](https://github.com/asciinema/agg): run `secretscan /path/to/repo` on a test repo to show the scan and detection output.
-
 ## 🛠️ Installation
 
 ### From Crates.io
