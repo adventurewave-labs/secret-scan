@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Entropy-based detection for high-entropy strings
 - Git-aware scanning with .gitignore support
 - Parallel file processing for improved performance
-- Multiple output formats: JSON, YAML, and human-readable
+- Multiple output formats: JSON and human-readable
 - Progress indicators and colored output for better UX
 - Configurable confidence thresholds
 - Context extraction for better secret identification
@@ -35,4 +35,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Progress indicators
 - Colored terminal output
 
-[0.1.0]: https://github.com/yourusername/secretscan/releases/tag/v0.1.0
+[0.1.0]: https://github.com/adventurewave-labs/secret-scan/releases/tag/v0.1.0
