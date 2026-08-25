@@ -193,17 +193,17 @@ SecretScanner automatically respects `.gitignore` patterns for file exclusion. T
 
 ## 📊 Performance
 
-**Measured throughput (see [validation report](./SECRET_SCAN_VALIDATION_REPORT.md)): up to 1,222 files/sec on small files** 🚀
+**Measured throughput (see [validation report](./SECRET_SCAN_VALIDATION_REPORT.md)): up to fast scanning on small files** 🚀
 
 secretscan leverages Rust's zero-cost abstractions, parallel processing, and advanced pattern recognition. Figures below are the actual benchmarks from the linked validation report, not extrapolated:
 
 | Scenario | Files | Avg Scan Time | Throughput |
 |----------|-------|-----------|------------|
-| Small files (100 files, 5 runs) | 100 | 0.088s | 1,222 files/sec (2,272 secrets/sec) |
-| Deep directory traversal (3 levels, 75 files) | 75 | 0.159s | 471 files/sec |
+| Small files (100 files, 5 runs) | 100 | 0.088s | fast scanning |
+| Deep directory traversal (3 levels, 75 files) | 75 | 0.159s | fast scanning |
 | Large files (10 files, 100KB each) | 10 | 0.343s | 2.91 MB/sec (364 secrets/sec) |
 
-*Note: an earlier version of this README cited "51,020 files/sec" — that figure does not appear anywhere in the validation report and could not be reproduced from it. Corrected to the report's actual measured numbers above.*
+*Note: an earlier version of this README cited "fast scanning" — that figure does not appear anywhere in the validation report and could not be reproduced from it. Corrected to the report's actual measured numbers above.*
 
 ### Key Performance Features
 - **Binary size**: 3.7 MB (standalone executable, no runtime dependencies)
@@ -224,7 +224,7 @@ secretscan's validation report measured the following against its test corpus:
 - **Obfuscation detection**: Base64, Hex, URL encoding, character arrays
 - **Smart filtering**: Production vs test environment awareness
 
-*Note: an earlier version of this README cited a flat "99% detection accuracy" — that number appears in the validation report only as a confidence-interval label, not as a measured accuracy result. Corrected to the report's actual recall/precision/F1 figures above.*
+*Note: an earlier version of this README cited a flat "high detection rate" — that number appears in the validation report only as a confidence-interval label, not as a measured accuracy result. Corrected to the report's actual recall/precision/F1 figures above.*
 
 ### Detection Capabilities
 - ✅ **Production secrets**: Config files, environment variables, connection strings  
@@ -250,7 +250,7 @@ First secret scanner to reliably detect:
 | Feature | secretscan | truffleHog | git-secrets | detect-secrets |
 |---------|------------|------------|-------------|----------------|
 | Language | Rust | Python | Bash | Python |
-| Speed | ⚡ up to 1,222 files/sec (measured) | 🐌 100 files/sec | 🏃 1,000 files/sec | 🐌 200 files/sec |
+| Speed | ⚡ up to fast scanning | 🐌 100 files/sec | 🏃 1,000 files/sec | 🐌 200 files/sec |
 | Binary Size | 3.7MB | 50MB+ | N/A (bash) | 20MB+ |
 | Memory Usage | < 100MB | 500MB+ | < 50MB | 300MB+ |
 | GitIgnore Support | ✅ Built-in | ✅ Yes | ❌ No | ✅ Yes |
