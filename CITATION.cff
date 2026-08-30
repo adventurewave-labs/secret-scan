@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "secretscan"
+version: "0.2.3"
+repository-code: "https://github.com/adventurewave-labs/secret-scan"
+license: "MIT"
+abstract: "Rust secret scanner CLI — 50 patterns, entropy analysis, Base64/hex obfuscation detection."
+authors:
+  - name: "Secretscan Team"
+    email: "support@secretscan.io"
