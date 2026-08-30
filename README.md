@@ -15,8 +15,8 @@ A fast secret scanner for your codebase. secretscan helps you find and remediate
 
 ## ✨ Features
 
-- **🚀 Lightning Fast**: Parallel scanning with Rayon for maximum performance (~0.3s scan time)
-- **🎯 High Accuracy**: Advanced entropy analysis and regex-based pattern matching (30+ secret types)
+- **🚀 Parallel Scanning**: Multi-threaded scanning with Rayon
+- **🎯 Pattern + Entropy Detection**: Regex-based pattern matching plus entropy analysis (30+ secret types)
 - **📦 Zero Config**: Works out of the box with sensible defaults
 - **🔧 Customizable**: Add your own patterns and configure detection rules
 - **🌈 Beautiful Output**: Colored terminal output with progress indicators
@@ -31,14 +31,6 @@ A fast secret scanner for your codebase. secretscan helps you find and remediate
 ```bash
 cargo install secretscan
 ```
-
-### Pre-built Binaries
-
-Download pre-built binaries from the [latest release](https://github.com/adventurewave-labs/secret-scan/releases/latest):
-
-- Linux: `secretscan-v0.2.1-x86_64-unknown-linux-gnu.tar.gz`
-- macOS: `secretscan-v0.2.1-x86_64-apple-darwin.tar.gz`
-- Windows: `secretscan-v0.2.1-x86_64-pc-windows-msvc.tar.gz`
 
 ### From Source
 
@@ -135,17 +127,6 @@ user    0m0.001s
 sys     0m0.003s
 ```
 
-## ✅ Validation Status
-
-**Latest Validation Results** (current `main`):
-- ✅ **All Tests Passing**: 65/65 tests (100% success rate)
-- ✅ **Integration Tests**: 12/12 passing 
-- ✅ **Performance**: Average scan time 0.305 seconds
-- ✅ **Detection Capability**: 105+ secrets across 30+ pattern types
-- ✅ **Production Ready**: Comprehensive validation completed
-
-See the full [validation report](./SECRET_SCAN_VALIDATION_REPORT.md) for detailed test results.
-
 ## 🎯 Detected Secret Types
 
 SecretScanner can detect various types of secrets including:
@@ -193,38 +174,16 @@ SecretScanner automatically respects `.gitignore` patterns for file exclusion. T
 
 ## 📊 Performance
 
-**Measured throughput (see [validation report](./SECRET_SCAN_VALIDATION_REPORT.md)): up to fast scanning on small files** 🚀
+secretscan is written in Rust and uses [rayon](https://github.com/rayon-rs/rayon) to scan files in parallel across CPU cores, with no runtime dependencies (JVM, interpreter, etc.) to start up.
 
-secretscan leverages Rust's zero-cost abstractions, parallel processing, and advanced pattern recognition. Figures below are the actual benchmarks from the linked validation report, not extrapolated:
-
-| Scenario | Files | Avg Scan Time | Throughput |
-|----------|-------|-----------|------------|
-| Small files (100 files, 5 runs) | 100 | 0.088s | fast scanning |
-| Deep directory traversal (3 levels, 75 files) | 75 | 0.159s | fast scanning |
-| Large files (10 files, 100KB each) | 10 | 0.343s | 2.91 MB/sec (364 secrets/sec) |
-
-*Note: an earlier version of this README cited "fast scanning" — that figure does not appear anywhere in the validation report and could not be reproduced from it. Corrected to the report's actual measured numbers above.*
-
-### Key Performance Features
-- **Binary size**: 3.7 MB (standalone executable, no runtime dependencies)
-- **Memory efficient**: Linear memory growth, ~1MB per 1,000 files
-- **Zero startup overhead**: Instant execution, no JVM or interpreter
-- **Optimized I/O**: Parallel file reading with buffer pooling
-
-*Benchmarked on an 8-core system; see the validation report for full methodology.*
+No throughput, latency, or memory numbers are published here. An earlier version of this README cited specific figures (files/sec, MB/sec, memory-per-file) attributed to a `SECRET_SCAN_VALIDATION_REPORT.md` that isn't part of this repository, plus a few spots where a fabricated number had been stripped and replaced with the literal placeholder text "fast scanning" rather than a real one. Both are removed rather than replaced with new unverified numbers — they'll come back if a real, reproducible benchmark gets committed alongside the report that backs it.
 
 ## 🎯 Accuracy
 
-secretscan's validation report measured the following against its test corpus:
+No recall, precision, or F1 numbers are published here. An earlier version of this README cited specific figures (95.2% recall, 98.2% precision, 96.7% F1, 2.1% false-positive rate) attributed to the same nonexistent `SECRET_SCAN_VALIDATION_REPORT.md`. They've been removed rather than re-derived from nothing. What's true of the detection approach itself:
 
-- **Recall (detection rate)**: 95.2% (94.0–96.4% at 95% CI)
-- **Precision**: 98.2%
-- **F1-score**: 96.7%
-- **False positive rate**: 2.1% (±0.4%)
 - **Obfuscation detection**: Base64, Hex, URL encoding, character arrays
 - **Smart filtering**: Production vs test environment awareness
-
-*Note: an earlier version of this README cited a flat "high detection rate" — that number appears in the validation report only as a confidence-interval label, not as a measured accuracy result. Corrected to the report's actual recall/precision/F1 figures above.*
 
 ### Detection Capabilities
 - ✅ **Production secrets**: Config files, environment variables, connection strings  
@@ -236,8 +195,8 @@ secretscan's validation report measured the following against its test corpus:
 - ✅ **Advanced patterns**: 50 comprehensive secret patterns
 - ❌ **Intelligently filtered**: Test fixtures, examples, dummy data
 
-### Breakthrough: Obfuscation Detection
-First secret scanner to reliably detect:
+### Obfuscation Detection
+secretscan detects secrets hidden behind common encodings:
 - Base64 encoded API keys: `api_key_b64 = "QUtJQUlPU0ZPRE5ON1RFU1RLRVk="`
 - Hex encoded secrets: `secret_hex = "736b2d7465737431323334"`  
 - Character arrays: `[115, 107, 45, 116, 101, 115, 116]` → "sk-test"
@@ -245,22 +204,18 @@ First secret scanner to reliably detect:
 
 ## 🔧 Comparison with Other Tools
 
-*Note: Speed comparisons are estimates based on typical performance. Actual results may vary based on hardware and repository characteristics.*
+Capability comparison against other secret-scanning tools. Performance figures (speed, binary size, memory usage) aren't included below — secretscan doesn't have published, reproducible numbers to compare fairly (see Performance above), so a table mixing real competitor numbers against unbacked ones would be misleading either way.
 
 | Feature | secretscan | truffleHog | git-secrets | detect-secrets |
 |---------|------------|------------|-------------|----------------|
 | Language | Rust | Python | Bash | Python |
-| Speed | ⚡ up to fast scanning | 🐌 100 files/sec | 🏃 1,000 files/sec | 🐌 200 files/sec |
-| Binary Size | 3.7MB | 50MB+ | N/A (bash) | 20MB+ |
-| Memory Usage | < 100MB | 500MB+ | < 50MB | 300MB+ |
 | GitIgnore Support | ✅ Built-in | ✅ Yes | ❌ No | ✅ Yes |
 | Entropy Analysis | ✅ Yes | ✅ Yes | ❌ No | ✅ Yes |
-| False Positive Rate | < 3% | ~15% | ~20% | ~10% |
 | Parallel Processing | ✅ Native | ❌ No | ❌ No | ❌ No |
 | JSON Output | ✅ Yes | ✅ Yes | ❌ No | ✅ Yes |
 | Test File Filtering | ✅ Yes | ❌ No | ❌ No | ✅ Yes |
 | Obfuscation Detection | ✅ Advanced | ❌ No | ❌ No | ❌ No |
-| Installation | Single binary | pip + deps | git + bash | pip + deps |
+| Installation | Single binary (cargo install) | pip + deps | git + bash | pip + deps |
 
 ## Ecosystem
 
