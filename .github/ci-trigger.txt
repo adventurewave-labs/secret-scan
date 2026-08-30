@@ -1,0 +1,1 @@
+GitHub Actions was re-enabled for this repository on 2026-08-30. This commit exists solely to trigger the first CI run under the current workflow.
