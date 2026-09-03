@@ -163,8 +163,7 @@ $ secretscan --skip-tests mock-repo
 - **CPU Utilization:** Efficient multi-threading observed
 - **Memory Usage:** Minimal memory footprint
 
-### Comparison to Documented Performance
-- **Documented:** 51,020 files/second throughput
+### Performance Observations
 - **Observed:** Limited by small test dataset (9 files)
 - **Assessment:** Performance scales appropriately for dataset size
 
