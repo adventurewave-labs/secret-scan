@@ -175,15 +175,12 @@ SecretScanner automatically respects `.gitignore` patterns for file exclusion. T
 
 ## 📊 Performance
 
-**Blazing fast: Scans 51,020 files/second with 99% detection accuracy** 🚀
-
 secretscan leverages Rust's zero-cost abstractions, parallel processing, and advanced pattern recognition for exceptional performance:
 
 | Repository Size | Files | Scan Time | Throughput | CPU Usage |
 |----------------|-------|-----------|------------|-----------|
 | Small Project  | 51    | 0.024s    | 2,125 files/sec | 79% |
 | Medium Project | 1,000 | 0.020s    | 50,000 files/sec | 120% |
-| Large Codebase | 10,000| 0.196s    | 51,020 files/sec | 155% |
 | Massive Repo   | 100,000| 2.45s    | 40,816 files/sec | 177% |
 
 ### Key Performance Features
@@ -237,7 +234,6 @@ First secret scanner to reliably detect:
 | Feature | secretscan | truffleHog | git-secrets | detect-secrets |
 |---------|------------|------------|-------------|----------------|
 | Language | Rust | Python | Bash | Python |
-| Speed | ⚡ 51,020 files/sec | 🐌 100 files/sec | 🏃 1,000 files/sec | 🐌 200 files/sec |
 | Binary Size | 3.7MB | 50MB+ | N/A (bash) | 20MB+ |
 | Memory Usage | < 100MB | 500MB+ | < 50MB | 300MB+ |
 | GitIgnore Support | ✅ Built-in | ✅ Yes | ❌ No | ✅ Yes |
