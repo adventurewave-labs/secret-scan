@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Four regexes used for obfuscation analysis were recompiled for every scanned line; they are now compiled once
 
 ### Fixed
+- "Heroku API Key" and "Azure Tenant ID" reported every UUID in a codebase, twice; both now require the provider name in the variable being assigned
 - Entropy values differed in the last bits from run to run (hash-map iteration order); they are now reproducible
 - Entropy divided by byte length instead of character count, under-reporting non-ASCII text
 - Findings came back in a different order on every run; they are now sorted by file, line and rule

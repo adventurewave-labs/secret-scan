@@ -65,7 +65,7 @@ const RULE_DEFS: &[(&str, &str, &[&str])] = &[
     ("Mailgun API Key", r"key-[0-9a-zA-Z]{32}", &[]),
     ("Firebase API Key", r"AIza[0-9A-Za-z\-_]{35}", &[]),
     ("DigitalOcean Token", r"dop_v1_[a-f0-9]{64}", &[]),
-    ("Heroku API Key", r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", &[]),
+    ("Heroku API Key", r#"(?i)\bheroku[a-z0-9_.\-]{0,24}["']?\s*[:=]\s*["']?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"#, &[]),
     ("Discord Token", r"[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{27}", &[]),
     ("Shopify Token", r"shppa_[a-fA-F0-9]{32}", &[]),
     ("GitLab Token", r"glpat-[0-9a-zA-Z\-_]{20}", &[]),
@@ -75,7 +75,10 @@ const RULE_DEFS: &[(&str, &str, &[&str])] = &[
     ("Generic Client ID", r#"(?i)(client|app)[_\s\-]?id["']?\s*[:=]\s*["']?([a-zA-Z0-9\-._~+/]{20,})["']?"#, &[]),
 
     // Azure Patterns
-    ("Azure Tenant ID", r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", &[]),
+    // A bare UUID is not a credential. These two rules used to match every
+    // UUID in a codebase; they now require the provider's name in the
+    // variable being assigned.
+    ("Azure Tenant ID", r#"(?i)\b(?:azure|aad|arm)[a-z0-9_.\-]{0,24}tenant[a-z0-9_.\-]{0,8}["']?\s*[:=]\s*["']?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"#, &[]),
     ("Azure Client Secret", r#"(?i)azure[_\s\-]?(client[_\s\-]?)?secret["']?\s*[:=]\s*["']?([a-zA-Z0-9~._-]{34,})["']?"#, &[]),
 
     // PayPal Patterns

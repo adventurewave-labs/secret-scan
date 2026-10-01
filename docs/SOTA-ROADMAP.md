@@ -32,7 +32,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
 - [x] **2. Prefilter.** Done with a `RegexSet` over all rules instead of
       hand-written keywords: it is built from the regexes it gates, so it cannot
       drift or cause false negatives. The `keywords` field on `Rule` is unused.
-- [ ] **3. Drop the UUID rules.** "Heroku API Key" and "Azure Tenant ID" match
+- [x] **3. Drop the UUID rules.** "Heroku API Key" and "Azure Tenant ID" match
       every UUID. Require a provider keyword on the line, or remove them.
 - [ ] **4. Private-key dedupe.** One PEM block currently yields up to three
       findings (RSA / Generic / Multi-line). Report it once.
@@ -85,3 +85,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
   `analyze_obfuscated_secrets_static` were recompiled for every line (now
   compiled once), and the `RegexSet` prefilter. Findings are identical before
   and after (`test-repo` byte-identical). CI test subset 70 → 74.
+- Loop 3: item 3. "Heroku API Key" and "Azure Tenant ID" now require the
+  provider name in the variable being assigned. On this repo each bare UUID
+  had produced two findings (one per rule); those are gone, and the two UUIDs
+  assigned to an Azure-named variable are still reported. CI test subset 74 → 78.
