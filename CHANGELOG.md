@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Eight modern token formats: GitHub fine-grained PAT, Anthropic, OpenAI project/service-account keys, Hugging Face, npm, PyPI, Slack app tokens, Stripe restricted keys and webhook secrets
 - `rule_id` and `fingerprint` helpers in the library API
 
+### Changed
+- Built-in rules are defined once, in a single `RULE_DEFS` table; `patterns::rules()` exposes them with stable ids. Detection behaviour is unchanged
+
 ### Fixed
 - Entropy values differed in the last bits from run to run (hash-map iteration order); they are now reproducible
 - Entropy divided by byte length instead of character count, under-reporting non-ASCII text

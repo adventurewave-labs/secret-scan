@@ -26,7 +26,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
 
 ## Backlog
 
-- [ ] **1. Single rule table.** Replace the two hand-maintained pattern maps in
+- [x] **1. Single rule table.** Replace the two hand-maintained pattern maps in
       `src/patterns.rs` with one `Rule { id, name, regex, keywords, severity,
       min_entropy }` table; derive both maps from it. Unblocks everything below.
 - [ ] **2. Keyword prefilter.** Add `aho-corasick`; skip a rule's regex on lines
@@ -74,4 +74,8 @@ to land as a single tested commit on the `claude/sota-loop` branch.
 
 ## Log
 
-- Iteration 1: items under "Done". `cargo test` (CI subset) 65 → 75 tests passing.
+- Seed commit: items under "Done". CI test subset 55 → 65 tests passing.
+  (An earlier version of this line said 65 → 75; that was a miscount.)
+- Loop 1: item 1. `RULE_DEFS` in `src/patterns.rs` is now the only place rules
+  are defined (378 → 332 lines, 259 deleted). `secretscan -q -f json test-repo`
+  output is byte-identical before and after. CI test subset 65 → 70.
