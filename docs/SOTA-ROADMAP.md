@@ -29,9 +29,9 @@ to land as a single tested commit on the `claude/sota-loop` branch.
 - [x] **1. Single rule table.** Replace the two hand-maintained pattern maps in
       `src/patterns.rs` with one `Rule { id, name, regex, keywords, severity,
       min_entropy }` table; derive both maps from it. Unblocks everything below.
-- [ ] **2. Keyword prefilter.** Add `aho-corasick`; skip a rule's regex on lines
-      that contain none of its keywords. Record before/after timing of
-      `secretscan -q .` in the log.
+- [x] **2. Prefilter.** Done with a `RegexSet` over all rules instead of
+      hand-written keywords: it is built from the regexes it gates, so it cannot
+      drift or cause false negatives. The `keywords` field on `Rule` is unused.
 - [ ] **3. Drop the UUID rules.** "Heroku API Key" and "Azure Tenant ID" match
       every UUID. Require a provider keyword on the line, or remove them.
 - [ ] **4. Private-key dedupe.** One PEM block currently yields up to three
@@ -79,3 +79,9 @@ to land as a single tested commit on the `claude/sota-loop` branch.
 - Loop 1: item 1. `RULE_DEFS` in `src/patterns.rs` is now the only place rules
   are defined (378 → 332 lines, 259 deleted). `secretscan -q -f json test-repo`
   output is byte-identical before and after. CI test subset 65 → 70.
+- Loop 2: item 2. `time ./target/release/secretscan -q -f json .` on this repo
+  (80 tracked files, 2 cores): 3.96 s → 0.145 s. Two changes are combined in
+  that number and were not measured separately: four regexes in
+  `analyze_obfuscated_secrets_static` were recompiled for every line (now
+  compiled once), and the `RegexSet` prefilter. Findings are identical before
+  and after (`test-repo` byte-identical). CI test subset 70 → 74.

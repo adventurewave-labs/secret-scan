@@ -8,7 +8,8 @@ use crate::patterns::{
 use crate::Finding;
 use ignore::WalkBuilder;
 use rayon::prelude::*;
-use regex::Regex;
+use lazy_static::lazy_static;
+use regex::{Regex, RegexSet, RegexSetBuilder};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -38,15 +39,82 @@ impl From<std::io::Error> for ScannerError {
     }
 }
 
+lazy_static! {
+    // Compiled once. These used to be rebuilt with `Regex::new` for every line
+    // scanned, which dominated total scan time.
+    static ref OBFUSCATED_BASE64: Regex =
+        Regex::new(r#"["']([A-Za-z0-9+/]{20,}={0,2})["']"#).unwrap();
+    static ref OBFUSCATED_HEX: Regex = Regex::new(r#"["']([a-fA-F0-9]{40,})["']"#).unwrap();
+    static ref OBFUSCATED_URL_ENCODED: Regex =
+        Regex::new(r#"["']([^"']*%[0-9A-Fa-f]{2}[^"']*)["']"#).unwrap();
+    static ref OBFUSCATED_CHAR_ARRAY: Regex =
+        Regex::new(r"\[(?:\s*\d+\s*,?\s*){10,}\]").unwrap();
+}
+
+/// The active rules plus a `RegexSet` prefilter over all of them.
+///
+/// One pass of the set over a line says which rules can match, so the
+/// individual regexes run only for those. Most lines match nothing and cost a
+/// single automaton pass instead of one search per rule. The set is built from
+/// the same regexes it gates, so it cannot introduce false negatives.
+pub struct PatternSet {
+    names: Vec<String>,
+    regexes: Vec<Regex>,
+    set: Option<RegexSet>,
+}
+
+impl PatternSet {
+    pub fn new(patterns: &HashMap<String, Regex>) -> Self {
+        // Sorted by name so rules are always tried in the same order.
+        let mut entries: Vec<(&String, &Regex)> = patterns.iter().collect();
+        entries.sort_by(|a, b| a.0.cmp(b.0));
+        let names: Vec<String> = entries.iter().map(|(n, _)| (*n).clone()).collect();
+        let regexes: Vec<Regex> = entries.iter().map(|(_, r)| (*r).clone()).collect();
+        // If the combined automaton cannot be built (e.g. oversized custom
+        // rules) fall back to running every regex, which is always correct.
+        let set = RegexSetBuilder::new(regexes.iter().map(|r| r.as_str()))
+            .size_limit(256 * 1024 * 1024)
+            .build()
+            .ok();
+        PatternSet { names, regexes, set }
+    }
+
+    /// Whether the prefilter is active (false means every rule runs per line).
+    pub fn has_prefilter(&self) -> bool {
+        self.set.is_some()
+    }
+
+    pub fn len(&self) -> usize {
+        self.names.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.names.is_empty()
+    }
+
+    /// Rules that can match `text`, as (name, regex) pairs.
+    pub fn candidates<'a>(&'a self, text: &str) -> Vec<(&'a String, &'a Regex)> {
+        match &self.set {
+            Some(set) => set
+                .matches(text)
+                .into_iter()
+                .map(|i| (&self.names[i], &self.regexes[i]))
+                .collect(),
+            None => self.names.iter().zip(self.regexes.iter()).collect(),
+        }
+    }
+}
+
 pub struct Scanner {
-    patterns: HashMap<String, Regex>,
+    matcher: Arc<PatternSet>,
     context_filter: ContextFilter,
 }
 
 impl Scanner {
     pub fn new() -> Result<Self, ScannerError> {
+        let patterns = get_all_patterns_owned();
         Ok(Scanner {
-            patterns: get_all_patterns_owned(),
+            matcher: Arc::new(PatternSet::new(&patterns)),
             context_filter: ContextFilter::new(),
         })
     }
@@ -58,17 +126,23 @@ impl Scanner {
         }
 
         Ok(Scanner {
-            patterns: pattern_map,
+            matcher: Arc::new(PatternSet::new(&pattern_map)),
             context_filter: ContextFilter::new(),
         })
     }
 
     /// Create scanner with custom context filter
     pub fn with_context_filter(context_filter: ContextFilter) -> Result<Self, ScannerError> {
+        let patterns = get_all_patterns_owned();
         Ok(Scanner {
-            patterns: get_all_patterns_owned(),
+            matcher: Arc::new(PatternSet::new(&patterns)),
             context_filter,
         })
+    }
+
+    /// The active rules and their prefilter.
+    pub fn pattern_set(&self) -> &PatternSet {
+        &self.matcher
     }
 
     /// Set context filter for this scanner
@@ -198,7 +272,7 @@ impl Scanner {
             .collect::<Vec<_>>();
 
         // Create owned copies for thread safety
-        let patterns = Arc::new(self.patterns.clone());
+        let patterns = Arc::clone(&self.matcher);
         let context_filter = Arc::new(self.context_filter.clone());
 
         // Process files in parallel using rayon
@@ -371,7 +445,7 @@ impl Scanner {
             let line = line_result?;
 
             // Check against all patterns
-            for (pattern_name, pattern) in &self.patterns {
+            for (pattern_name, pattern) in self.matcher.candidates(&line) {
                 // Debug logging for AWS patterns when enabled
                 if pattern_name.contains("AWS") && std::env::var("SECRETSCAN_DEBUG").is_ok() {
                     eprintln!("[DEBUG] Testing AWS pattern '{}' against line: {}", pattern_name, line.trim());
@@ -480,7 +554,7 @@ impl Scanner {
                 global_line_number += 1;
 
                 // Check against all patterns
-                for (pattern_name, pattern) in &self.patterns {
+                for (pattern_name, pattern) in self.matcher.candidates(line) {
                     if let Some(mat) = pattern.find(line) {
                         let matched_text = mat.as_str().to_string();
 
@@ -519,7 +593,7 @@ impl Scanner {
                 if !overlap_buffer.is_empty() {
                     global_line_number += 1;
 
-                    for (pattern_name, pattern) in &self.patterns {
+                    for (pattern_name, pattern) in self.matcher.candidates(&overlap_buffer) {
                         if let Some(mat) = pattern.find(&overlap_buffer) {
                             let matched_text = mat.as_str().to_string();
 
@@ -554,7 +628,7 @@ impl Scanner {
     /// Static version of scan_file for use with Arc references in parallel processing
     fn scan_file_static(
         file_path: &Path,
-        patterns: &HashMap<String, Regex>,
+        patterns: &PatternSet,
         context_filter: &ContextFilter,
     ) -> Result<Vec<Finding>, ScannerError> {
         Self::scan_file_static_streaming(file_path, patterns, context_filter)
@@ -563,7 +637,7 @@ impl Scanner {
     /// Memory-optimized static scan_file method
     fn scan_file_static_streaming(
         file_path: &Path,
-        patterns: &HashMap<String, Regex>,
+        patterns: &PatternSet,
         context_filter: &ContextFilter,
     ) -> Result<Vec<Finding>, ScannerError> {
         let file = File::open(file_path)?;
@@ -582,7 +656,7 @@ impl Scanner {
     fn scan_file_static_buffered(
         file_path: &Path,
         file: File,
-        patterns: &HashMap<String, Regex>,
+        patterns: &PatternSet,
         context_filter: &ContextFilter,
     ) -> Result<Vec<Finding>, ScannerError> {
         let reader = BufReader::with_capacity(8192, file);
@@ -593,7 +667,7 @@ impl Scanner {
             let line = line_result?;
 
             // Check against all patterns
-            for (pattern_name, pattern) in patterns {
+            for (pattern_name, pattern) in patterns.candidates(&line) {
                 if let Some(mat) = pattern.find(&line) {
                     let matched_text = mat.as_str().to_string();
 
@@ -630,7 +704,7 @@ impl Scanner {
     fn scan_file_static_chunked(
         file_path: &Path,
         mut file: File,
-        patterns: &HashMap<String, Regex>,
+        patterns: &PatternSet,
         context_filter: &ContextFilter,
     ) -> Result<Vec<Finding>, ScannerError> {
         const CHUNK_SIZE: usize = 1024 * 1024; // 1MB chunks
@@ -676,7 +750,7 @@ impl Scanner {
             for line in lines.iter().take(lines_to_process) {
                 global_line_number += 1;
 
-                for (pattern_name, pattern) in patterns {
+                for (pattern_name, pattern) in patterns.candidates(line) {
                     if let Some(mat) = pattern.find(line) {
                         let matched_text = mat.as_str().to_string();
 
@@ -710,7 +784,7 @@ impl Scanner {
                 if !overlap_buffer.is_empty() {
                     global_line_number += 1;
 
-                    for (pattern_name, pattern) in patterns {
+                    for (pattern_name, pattern) in patterns.candidates(&overlap_buffer) {
                         if let Some(mat) = pattern.find(&overlap_buffer) {
                             let matched_text = mat.as_str().to_string();
 
@@ -951,7 +1025,7 @@ impl Scanner {
         let mut findings = Vec::new();
         
         // Analyze suspicious base64 strings
-        let base64_regex = regex::Regex::new(r#"["']([A-Za-z0-9+/]{20,}={0,2})["']"#).unwrap();
+        let base64_regex = &*OBFUSCATED_BASE64;
         for cap in base64_regex.captures_iter(line) {
             if let Some(b64_match) = cap.get(1) {
                 let b64_string = b64_match.as_str();
@@ -978,7 +1052,7 @@ impl Scanner {
         }
         
         // Analyze suspicious hex strings
-        let hex_regex = regex::Regex::new(r#"["']([a-fA-F0-9]{40,})["']"#).unwrap();
+        let hex_regex = &*OBFUSCATED_HEX;
         for cap in hex_regex.captures_iter(line) {
             if let Some(hex_match) = cap.get(1) {
                 let hex_string = hex_match.as_str();
@@ -1005,7 +1079,7 @@ impl Scanner {
         }
         
         // Analyze URL encoded strings
-        let url_encoded_regex = regex::Regex::new(r#"["']([^"']*%[0-9A-Fa-f]{2}[^"']*)["']"#).unwrap();
+        let url_encoded_regex = &*OBFUSCATED_URL_ENCODED;
         for cap in url_encoded_regex.captures_iter(line) {
             if let Some(url_match) = cap.get(1) {
                 let url_string = url_match.as_str();
@@ -1030,7 +1104,7 @@ impl Scanner {
         }
         
         // Analyze character arrays
-        let char_array_regex = regex::Regex::new(r"\[(?:\s*\d+\s*,?\s*){10,}\]").unwrap();
+        let char_array_regex = &*OBFUSCATED_CHAR_ARRAY;
         for mat in char_array_regex.find_iter(line) {
             let array_string = mat.as_str();
             

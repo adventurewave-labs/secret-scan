@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Built-in rules are defined once, in a single `RULE_DEFS` table; `patterns::rules()` exposes them with stable ids. Detection behaviour is unchanged
 
+### Performance
+- A `RegexSet` prefilter runs each rule's regex only on lines it can match
+- Four regexes used for obfuscation analysis were recompiled for every scanned line; they are now compiled once
+
 ### Fixed
 - Entropy values differed in the last bits from run to run (hash-map iteration order); they are now reproducible
 - Entropy divided by byte length instead of character count, under-reporting non-ASCII text
