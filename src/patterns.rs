@@ -89,6 +89,16 @@ lazy_static! {
     static ref URL_ENCODED_PATTERN: Regex = Regex::new(r#"(?i)(database[_\s\-]?url|db[_\s\-]?url|connection[_\s\-]?string|conn[_\s\-]?str)["']?\s*[:=]\s*["']?([^"'\s]*%[0-9A-Fa-f]{2}[^"'\s]*)["']?"#).unwrap();
     static ref CHARACTER_ARRAY_PATTERN: Regex = Regex::new(r"\[(?:\s*\d+\s*,?\s*){16,}\]").unwrap();
     static ref SPLIT_SECRET_PATTERN: Regex = Regex::new(r#"(?i)(api[_\s\-]?key|secret|token|password|pass|auth|credential)["']?\s*[:=]\s*["']?([A-Za-z0-9+/]{8,})["']?\s*\+\s*["']?([A-Za-z0-9+/]{8,})["']?"#).unwrap();
+
+    // Modern provider token formats (prefix-anchored, format-exact)
+    static ref GITHUB_FINE_GRAINED_PAT: Regex = Regex::new(r"\bgithub_pat_[0-9A-Za-z_]{82}").unwrap();
+    static ref ANTHROPIC_API_KEY: Regex = Regex::new(r"\bsk-ant-(?:api03|admin01)-[A-Za-z0-9_\-]{80,}").unwrap();
+    static ref OPENAI_PROJECT_KEY: Regex = Regex::new(r"\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{40,}").unwrap();
+    static ref HUGGINGFACE_TOKEN: Regex = Regex::new(r"\bhf_[A-Za-z0-9]{34,}").unwrap();
+    static ref NPM_ACCESS_TOKEN: Regex = Regex::new(r"\bnpm_[A-Za-z0-9]{36}\b").unwrap();
+    static ref PYPI_UPLOAD_TOKEN: Regex = Regex::new(r"\bpypi-AgEIcHlwaS5vcmc[A-Za-z0-9_\-]{50,}").unwrap();
+    static ref SLACK_APP_TOKEN: Regex = Regex::new(r"\bxapp-[0-9]-[A-Z0-9]+-[0-9]+-[a-f0-9]{32,}").unwrap();
+    static ref STRIPE_RESTRICTED_KEY: Regex = Regex::new(r"\b(?:rk_(?:test|live)_[0-9A-Za-z]{24,}|whsec_[0-9A-Za-z]{32,})").unwrap();
     static ref ALL_PATTERNS: HashMap<String, &'static Regex> = {
         let mut patterns = HashMap::new();
         // AWS Patterns
@@ -166,6 +176,16 @@ lazy_static! {
         patterns.insert("URL Encoded Pattern".to_string(), &*URL_ENCODED_PATTERN);
         patterns.insert("Character Array Pattern".to_string(), &*CHARACTER_ARRAY_PATTERN);
         patterns.insert("Split Secret Pattern".to_string(), &*SPLIT_SECRET_PATTERN);
+
+        // Modern provider tokens
+        patterns.insert("GitHub Fine-Grained PAT".to_string(), &*GITHUB_FINE_GRAINED_PAT);
+        patterns.insert("Anthropic API Key".to_string(), &*ANTHROPIC_API_KEY);
+        patterns.insert("OpenAI Project Key".to_string(), &*OPENAI_PROJECT_KEY);
+        patterns.insert("Hugging Face Token".to_string(), &*HUGGINGFACE_TOKEN);
+        patterns.insert("npm Access Token".to_string(), &*NPM_ACCESS_TOKEN);
+        patterns.insert("PyPI Upload Token".to_string(), &*PYPI_UPLOAD_TOKEN);
+        patterns.insert("Slack App Token".to_string(), &*SLACK_APP_TOKEN);
+        patterns.insert("Stripe Restricted Key".to_string(), &*STRIPE_RESTRICTED_KEY);
         
         patterns
     };
@@ -252,6 +272,16 @@ pub fn get_all_patterns_owned() -> HashMap<String, Regex> {
     patterns.insert("URL Encoded Pattern".to_string(), URL_ENCODED_PATTERN.clone());
     patterns.insert("Character Array Pattern".to_string(), CHARACTER_ARRAY_PATTERN.clone());
     patterns.insert("Split Secret Pattern".to_string(), SPLIT_SECRET_PATTERN.clone());
+
+    // Modern provider tokens
+    patterns.insert("GitHub Fine-Grained PAT".to_string(), GITHUB_FINE_GRAINED_PAT.clone());
+    patterns.insert("Anthropic API Key".to_string(), ANTHROPIC_API_KEY.clone());
+    patterns.insert("OpenAI Project Key".to_string(), OPENAI_PROJECT_KEY.clone());
+    patterns.insert("Hugging Face Token".to_string(), HUGGINGFACE_TOKEN.clone());
+    patterns.insert("npm Access Token".to_string(), NPM_ACCESS_TOKEN.clone());
+    patterns.insert("PyPI Upload Token".to_string(), PYPI_UPLOAD_TOKEN.clone());
+    patterns.insert("Slack App Token".to_string(), SLACK_APP_TOKEN.clone());
+    patterns.insert("Stripe Restricted Key".to_string(), STRIPE_RESTRICTED_KEY.clone());
     
     patterns
 }

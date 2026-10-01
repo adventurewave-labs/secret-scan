@@ -9,6 +9,7 @@ use std::process;
 #[derive(Clone)]
 enum OutputFormat {
     Json,
+    Sarif,
     Text,
 }
 
@@ -16,6 +17,7 @@ impl From<&str> for OutputFormat {
     fn from(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "json" => OutputFormat::Json,
+            "sarif" => OutputFormat::Sarif,
             "text" => OutputFormat::Text,
             _ => OutputFormat::Text,
         }
@@ -24,7 +26,7 @@ impl From<&str> for OutputFormat {
 
 fn main() {
     let matches = Command::new("secretscan")
-        .version("0.2.1")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("Secretscan Team")
         .about("A Rust CLI tool for detecting secrets in codebases")
         .arg(
@@ -40,7 +42,7 @@ fn main() {
                 .short('f')
                 .help("Output format")
                 .value_name("FORMAT")
-                .value_parser(["json", "text"])
+                .value_parser(["json", "sarif", "text"])
                 .default_value("text"),
         )
         .arg(
@@ -63,6 +65,12 @@ fn main() {
                 .help("Skip test files and test-related patterns to reduce false positives")
                 .action(ArgAction::SetTrue),
         )
+        .arg(
+            Arg::new("redact")
+                .long("redact")
+                .help("Mask secret values in the output (safe for CI logs and shared reports)")
+                .action(ArgAction::SetTrue),
+        )
         .get_matches();
 
     let scan_path = PathBuf::from(matches.get_one::<String>("path").unwrap());
@@ -70,6 +78,7 @@ fn main() {
     let output_file = matches.get_one::<String>("output");
     let quiet = matches.get_flag("quiet");
     let skip_tests = matches.get_flag("skip-tests");
+    let redact = matches.get_flag("redact");
 
     // Validate scan path
     if !scan_path.exists() {
@@ -113,7 +122,7 @@ fn main() {
     };
 
     // Perform scan
-    let findings = match scanner.scan_directory(&scan_path) {
+    let mut findings = match scanner.scan_directory(&scan_path) {
         Ok(findings) => {
             if let Some(pb) = &progress {
                 pb.finish_with_message(format!(
@@ -133,8 +142,26 @@ fn main() {
         }
     };
 
+    // SARIF is rendered before redaction: its fingerprints are derived from
+    // the real secret, and SARIF output never contains secret text anyway.
+    let sarif = match format {
+        OutputFormat::Sarif => match format_as_sarif(&findings, env!("CARGO_PKG_VERSION")) {
+            Ok(sarif) => Some(sarif),
+            Err(e) => {
+                eprintln!("{} Failed to format SARIF: {}", "Error:".red().bold(), e);
+                process::exit(1);
+            }
+        },
+        _ => None,
+    };
+
+    if redact {
+        redact_findings(&mut findings);
+    }
+
     // Format output
     let output_content = match format {
+        OutputFormat::Sarif => sarif.unwrap_or_default(),
         OutputFormat::Json => match format_as_json(&findings) {
             Ok(json) => json,
             Err(e) => {

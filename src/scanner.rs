@@ -84,7 +84,26 @@ impl Scanner {
     pub fn scan_directory(&self, path: &Path) -> Result<Vec<Finding>, ScannerError> {
         let mut findings = self.scan_directory_optimized(path)?;
         Self::dedupe_overlapping_findings(&mut findings);
+        // Inline suppression: a line carrying an allow marker is an explicit,
+        // reviewable decision by the author (same convention as gitleaks).
+        findings.retain(|f| !Self::has_inline_allow(&f.line_content));
+        // Deterministic order — parallel scanning otherwise yields a different
+        // ordering per run, which breaks diffing, baselines and CI caching.
+        findings.sort_by(|a, b| {
+            (&a.file_path, a.line_number, &a.pattern_name, &a.matched_text).cmp(&(
+                &b.file_path,
+                b.line_number,
+                &b.pattern_name,
+                &b.matched_text,
+            ))
+        });
         Ok(findings)
+    }
+
+    /// True when the line opts out of scanning via `secretscan:allow`
+    /// (or the gitleaks-compatible `gitleaks:allow`).
+    pub fn has_inline_allow(line: &str) -> bool {
+        line.contains("secretscan:allow") || line.contains("gitleaks:allow")
     }
 
     /// Remove redundant findings that describe the same secret on the same line.
@@ -786,7 +805,10 @@ impl Scanner {
             "AWS Access Key" | "AWS Access Key ID" | "GitHub Token" | "Google API Key" 
             | "OpenAI API Key" | "Stripe API Key" | "SendGrid API Key" | "Slack Token" 
             | "Twilio API Key" | "Mailgun API Key" | "Firebase API Key" | "DigitalOcean Token"
-            | "Discord Token" | "Shopify Token" | "GitLab Token" => 2.5,
+            | "Discord Token" | "Shopify Token" | "GitLab Token"
+            | "GitHub Fine-Grained PAT" | "Anthropic API Key" | "OpenAI Project Key"
+            | "Hugging Face Token" | "npm Access Token" | "PyPI Upload Token"
+            | "Slack App Token" | "Stripe Restricted Key" => 2.5,
             
             // JWT tokens should have high entropy but allow some variation
             "JWT Token" => 3.0,

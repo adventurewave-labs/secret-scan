@@ -20,7 +20,9 @@ A fast secret scanner for your codebase. secretscan helps you find and remediate
 - **📦 Zero Config**: Works out of the box with sensible defaults
 - **🔧 Customizable**: Add your own patterns and configure detection rules
 - **🌈 Beautiful Output**: Colored terminal output with progress indicators
-- **📊 Multiple Formats**: JSON and text output formats
+- **📊 Multiple Formats**: JSON, SARIF 2.1.0 and text output formats
+- **🙈 Redaction**: `--redact` masks secret values so reports are safe in CI logs
+- **🔕 Inline Suppression**: `secretscan:allow` (or `gitleaks:allow`) on a line silences it
 - **🚫 GitIgnore Support**: Respects `.gitignore` patterns automatically
 - **🔍 Advanced Detection**: Supports obfuscated secrets (Base64, Hex, Character Arrays)
 
@@ -62,6 +64,16 @@ Output results as JSON:
 secretscan --format json
 ```
 
+Produce SARIF for GitHub code scanning (contains no secret text):
+```bash
+secretscan --format sarif --output results.sarif
+```
+
+Mask secret values in the report:
+```bash
+secretscan --redact
+```
+
 Save results to a file:
 ```bash
 secretscan --output results.txt
@@ -76,10 +88,11 @@ Arguments:
   [PATH]  Path to scan for secrets [default: .]
 
 Options:
-  -f, --format <FORMAT>  Output format [default: text] [possible values: json, text]
+  -f, --format <FORMAT>  Output format [default: text] [possible values: json, sarif, text]
   -o, --output <FILE>    Output file (default: stdout)
   -q, --quiet            Suppress progress bar
       --skip-tests       Skip test files and test-related patterns to reduce false positives
+      --redact           Mask secret values in the output (safe for CI logs and shared reports)
   -h, --help             Print help
   -V, --version          Print version
 ```
@@ -170,7 +183,21 @@ secretscan uses advanced regex-based pattern matching to detect secrets:
 
 ## 🔧 Configuration
 
-SecretScanner automatically respects `.gitignore` patterns for file exclusion. The scanner comes with 50 built-in patterns covering all major secret types.
+SecretScanner automatically respects `.gitignore` patterns for file exclusion. The scanner comes with 58 built-in patterns covering all major secret types.
+
+### Suppressing a finding
+
+Add `secretscan:allow` (or the gitleaks-compatible `gitleaks:allow`) to the line:
+
+```python
+EXAMPLE_KEY = "AKIAIOSFODNN7EXAMPLE"  # secretscan:allow
+```
+
+### Stable output
+
+Findings are sorted by file, line and rule, and every SARIF result carries a
+fingerprint derived from the file path, rule and secret (not the line number),
+so results can be diffed between runs and tracked as code moves.
 
 ## 📊 Performance
 

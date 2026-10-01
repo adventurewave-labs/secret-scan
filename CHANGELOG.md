@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- SARIF 2.1.0 output (`--format sarif`) for GitHub code scanning and other CI dashboards; results carry a stable fingerprint and never include secret text
+- `--redact` flag to mask secret values in text and JSON output
+- Inline suppression with `secretscan:allow` / `gitleaks:allow`
+- Eight modern token formats: GitHub fine-grained PAT, Anthropic, OpenAI project/service-account keys, Hugging Face, npm, PyPI, Slack app tokens, Stripe restricted keys and webhook secrets
+- `rule_id` and `fingerprint` helpers in the library API
+
+### Fixed
+- Entropy values differed in the last bits from run to run (hash-map iteration order); they are now reproducible
+- Entropy divided by byte length instead of character count, under-reporting non-ASCII text
+- Findings came back in a different order on every run; they are now sorted by file, line and rule
+- `--version` reported 0.2.1 regardless of the crate version
+
 ## [0.2.1] - 2025-07-02
 
 ## [0.2.0] - 2025-07-02
