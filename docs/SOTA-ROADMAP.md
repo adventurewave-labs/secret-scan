@@ -42,7 +42,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
       (`level`, `security-severity`); add `--min-severity`.
 - [x] **7. Baseline.** `--baseline <file>` suppresses known fingerprints;
       `--write-baseline <file>` records them. Exit code reflects new findings only.
-- [ ] **8. Config file.** `.secretscan.toml`: allowlisted paths, regexes and
+- [x] **8. Config file.** `.secretscan.toml`: allowlisted paths, regexes and
       fingerprints, disabled rules, custom rules.
 - [ ] **9. Stopwords and placeholders.** Reject values such as `EXAMPLE`,
       `changeme`, `xxxx`, `<your-key>` and repeated-character runs for generic
@@ -112,3 +112,8 @@ to land as a single tested commit on the `claude/sota-loop` branch.
   Fingerprints now use a normalized path (no leading `./`, forward slashes),
   so they changed for any path that was scanned as `./…`; nothing had been
   released with the old values. Baseline errors exit 2. CI test subset 96 → 102.
+- Loop 8: item 8. `.secretscan.toml` (`src/config.rs`, new dependency `toml`):
+  allowlist by path, secret regex and fingerprint; disabled rules; custom rules
+  with severity. Strict parsing, exit 2 on any mistake. Behaviour change:
+  patterns that are not built-in (custom rules, `Scanner::with_patterns`) are
+  no longer subject to the entropy filter. CI test subset 102 → 111.

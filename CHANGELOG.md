@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `.secretscan.toml` config file (`--config`, `--no-config`): allowlist by path, secret regex or fingerprint; disable rules by id; define custom rules with a severity
 - `--write-baseline <file>` records the current findings (fingerprints only, no secret text) and `--baseline <file>` suppresses them, so only new findings are reported and fail the run
 - Severity (`low`, `medium`, `high`, `critical`) on every rule, shown in text output, JSON and SARIF (`level` and `security-severity`)
 - `--min-severity <level>` to report, and fail on, only findings at or above a severity
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rule_id` and `fingerprint` helpers in the library API
 
 ### Changed
+- Custom patterns passed to `Scanner::with_patterns` are no longer subject to the entropy filter; every match is reported
 - One scan path for all files regardless of size; removed the separate chunked path for files over 10 MB, the legacy `scan_directory_rayon` and the `SECRETSCAN_DEBUG` output
 - Built-in rules are defined once, in a single `RULE_DEFS` table; `patterns::rules()` exposes them with stable ids. Detection behaviour is unchanged
 

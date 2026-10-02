@@ -1,7 +1,8 @@
 use clap::{Arg, ArgAction, Command};
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
-use secretscan::patterns::Severity;
+use secretscan::config::Config;
+use secretscan::patterns::{get_all_patterns_owned, register_custom_severity, Severity};
 use secretscan::{output::*, ContextFilter, Scanner};
 use std::fs;
 use secretscan::baseline::Baseline;
@@ -76,6 +77,20 @@ fn main() {
                 .default_value("low"),
         )
         .arg(
+            Arg::new("config")
+                .long("config")
+                .short('c')
+                .help("Config file (default: .secretscan.toml in the scanned directory, if present)")
+                .value_name("FILE")
+                .conflicts_with("no-config"),
+        )
+        .arg(
+            Arg::new("no-config")
+                .long("no-config")
+                .help("Ignore any .secretscan.toml")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("baseline")
                 .long("baseline")
                 .help("Suppress findings recorded in this baseline file; only new findings are reported")
@@ -127,8 +142,41 @@ fn main() {
         process::exit(1);
     }
 
+    // An explicit --config must exist; a discovered one is optional.
+    let config_path = match matches.get_one::<String>("config") {
+        Some(path) => Some(PathBuf::from(path)),
+        None if matches.get_flag("no-config") => None,
+        None => Config::discover(&scan_path),
+    };
+    let config = match &config_path {
+        Some(path) => match Config::load(path) {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!(
+                    "{} Invalid config {}: {}",
+                    "Error:".red().bold(),
+                    path.display(),
+                    e
+                );
+                process::exit(2);
+            }
+        },
+        None => Config::default(),
+    };
+
     // Create scanner with appropriate context filter
-    let mut scanner = match Scanner::new() {
+    let scanner_result = if config.custom_rules().is_empty() {
+        Scanner::new()
+    } else {
+        let mut patterns: Vec<(String, regex::Regex)> =
+            get_all_patterns_owned().into_iter().collect();
+        for rule in config.custom_rules() {
+            register_custom_severity(&rule.name, rule.severity);
+            patterns.push((rule.name.clone(), rule.regex.clone()));
+        }
+        Scanner::with_patterns(patterns)
+    };
+    let mut scanner = match scanner_result {
         Ok(s) => s,
         Err(e) => {
             eprintln!("{} Failed to create scanner: {}", "Error:".red().bold(), e);
@@ -169,6 +217,13 @@ fn main() {
             process::exit(1);
         }
     };
+
+    config.apply(&mut findings);
+    // The config file holds allowlist patterns and rule regexes, which can
+    // look like the secrets they describe; it is not itself scanned.
+    if let Some(config_file) = config_path.as_ref().and_then(|p| fs::canonicalize(p).ok()) {
+        findings.retain(|f| fs::canonicalize(&f.file_path).ok().as_ref() != Some(&config_file));
+    }
 
     // Applied before anything is reported, so the summary line, the output
     // and the exit code all describe the same set of findings.

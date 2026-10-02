@@ -93,6 +93,8 @@ Options:
   -q, --quiet            Suppress progress bar
       --skip-tests       Skip test files and test-related patterns to reduce false positives
       --min-severity <LEVEL>  Report only findings at or above this severity [default: low] [possible values: low, medium, high, critical]
+  -c, --config <FILE>         Config file (default: .secretscan.toml in the scanned directory, if present)
+      --no-config             Ignore any .secretscan.toml
       --baseline <FILE>       Suppress findings recorded in this baseline file; only new findings are reported
       --write-baseline <FILE> Record every finding of this scan in a baseline file and exit 0
       --redact           Mask secret values in the output (safe for CI logs and shared reports)
@@ -187,6 +189,29 @@ secretscan uses advanced regex-based pattern matching to detect secrets:
 ## 🔧 Configuration
 
 SecretScanner automatically respects `.gitignore` patterns for file exclusion. The scanner comes with 58 built-in patterns covering all major secret types.
+
+### Config file
+
+Put a `.secretscan.toml` in the directory you scan (or pass `--config <file>`):
+
+```toml
+[allowlist]
+paths = ["^vendor/", "\\.lock$"]      # regexes matched against the file path
+regexes = ["EXAMPLE", "^changeme$"]   # regexes matched against the secret
+fingerprints = ["4ac28efb3d612a0a"]   # exact findings, from JSON or SARIF output
+
+[rules]
+disable = ["azure-tenant-id"]         # rule ids, as shown in JSON output
+
+[[rules.custom]]
+name = "Acme Token"
+regex = "acme_[a-f0-9]{32}"
+severity = "high"                     # low, medium (default), high or critical
+```
+
+Unknown keys, unknown rule ids and invalid regexes are errors (exit code 2),
+so a typo cannot silently disable a check. Every match of a custom rule is
+reported; the entropy filter applies only to built-in rules.
 
 ### Suppressing a finding
 

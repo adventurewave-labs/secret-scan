@@ -85,21 +85,43 @@ pub struct Rule {
 /// severity of the underlying rule. Names that match no built-in rule (custom
 /// patterns) are `Medium`.
 pub fn severity_for(pattern_name: &str) -> Severity {
+    let base = base_rule_name(pattern_name);
+    if let Some(rule) = RULES.iter().find(|rule| rule.name == base) {
+        return rule.severity;
+    }
+    CUSTOM_SEVERITIES
+        .read()
+        .ok()
+        .and_then(|map| map.get(base).copied())
+        .unwrap_or(Severity::Medium)
+}
+
+/// The rule a finding came from, with any "… Encoded"/"… Decoded" prefix
+/// removed.
+pub fn base_rule_name(pattern_name: &str) -> &str {
     const PREFIXES: [&str; 4] = [
         "Base64 Encoded ",
         "Hex Encoded ",
         "URL Decoded ",
         "Character Array Encoded ",
     ];
-    let base = PREFIXES
+    PREFIXES
         .iter()
         .find_map(|prefix| pattern_name.strip_prefix(prefix))
-        .unwrap_or(pattern_name);
-    RULES
-        .iter()
-        .find(|rule| rule.name == base)
-        .map(|rule| rule.severity)
-        .unwrap_or(Severity::Medium)
+        .unwrap_or(pattern_name)
+}
+
+/// Declare the severity of a custom rule, so that [`severity_for`] reports
+/// it. Built-in rules cannot be overridden this way.
+pub fn register_custom_severity(name: &str, severity: Severity) {
+    if let Ok(mut map) = CUSTOM_SEVERITIES.write() {
+        map.insert(name.to_string(), severity);
+    }
+}
+
+/// Whether `name` is one of the built-in rules.
+pub fn is_builtin_rule(name: &str) -> bool {
+    RULES.iter().any(|rule| rule.name == name)
 }
 
 /// The single source of truth for built-in rules: (name, regex, severity).
@@ -217,6 +239,8 @@ lazy_static! {
             severity,
         })
         .collect();
+    static ref CUSTOM_SEVERITIES: std::sync::RwLock<HashMap<String, Severity>> =
+        std::sync::RwLock::new(HashMap::new());
     static ref ALL_PATTERNS: HashMap<String, &'static Regex> = RULES
         .iter()
         .map(|rule| (rule.name.to_string(), &rule.regex))

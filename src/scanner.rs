@@ -563,8 +563,12 @@ impl Scanner {
             "Azure Tenant ID" | "Azure Client Secret" => 2.5,
             "PayPal Client ID" | "PayPal Secret" => 2.5,
             
-            // Default threshold for unknown patterns
-            _ => 3.0,
+            // Built-in rules without a specific threshold.
+            _ if crate::patterns::is_builtin_rule(pattern_name) => 3.0,
+
+            // Custom rules: the author wrote the regex for exactly these
+            // strings, so every match is reported regardless of entropy.
+            _ => 0.0,
         };
         
         // Always include if entropy meets threshold

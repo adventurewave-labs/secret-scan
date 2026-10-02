@@ -1,4 +1,5 @@
 pub mod baseline;
+pub mod config;
 pub mod context;
 pub mod entropy;
 pub mod output;
