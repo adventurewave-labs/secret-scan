@@ -226,6 +226,26 @@ const RULE_DEFS: &[(&str, &str, Severity)] = &[
     ("PyPI Upload Token", r"\bpypi-AgEIcHlwaS5vcmc[A-Za-z0-9_\-]{50,}", Severity::High),
     ("Slack App Token", r"\bxapp-[0-9]-[A-Z0-9]+-[0-9]+-[a-f0-9]{32,}", Severity::High),
     ("Stripe Restricted Key", r"\b(?:rk_(?:test|live)_[0-9A-Za-z]{24,}|whsec_[0-9A-Za-z]{32,})", Severity::High),
+
+    // More providers. Prefix-anchored formats first; the last four have no
+    // distinctive prefix and require the provider name in the variable.
+    ("Azure Storage Account Key", r"\bAccountKey=[A-Za-z0-9+/]{86}==", Severity::High),
+    ("Databricks Token", r"\bdapi[a-f0-9]{32}(?:-[0-9])?\b", Severity::High),
+    ("Supabase Access Token", r"\bsbp_[a-f0-9]{40}\b", Severity::High),
+    ("Telegram Bot Token", r"\b[0-9]{8,10}:AA[A-Za-z0-9_\-]{33}\b", Severity::High),
+    ("Postman API Key", r"\bPMAK-[a-f0-9]{24}-[a-f0-9]{34}\b", Severity::High),
+    ("Linear API Key", r"\blin_api_[A-Za-z0-9]{40}\b", Severity::High),
+    ("Notion Token", r"\b(?:secret_[A-Za-z0-9]{43}|ntn_[A-Za-z0-9]{40,})\b", Severity::High),
+    ("Doppler Token", r"\bdp\.(?:pt|st|sa|ct|scim|audit)\.[A-Za-z0-9]{40,44}\b", Severity::High),
+    ("Docker Hub Token", r"\bdckr_pat_[A-Za-z0-9_\-]{27}\b", Severity::High),
+    ("Grafana Service Account Token", r"\bglsa_[A-Za-z0-9]{32}_[a-f0-9]{8}\b", Severity::High),
+    ("Age Secret Key", r"\bAGE-SECRET-KEY-1[QPZRY9X8GF2TVDW0S3JN54KHCE6MUA7L]{58}\b", Severity::Critical),
+    // Marks a Google Cloud service-account credentials file; the key inside
+    // it is reported separately by the private-key rules.
+    ("GCP Service Account", r#""type"\s*:\s*"service_account""#, Severity::Medium),
+    ("Datadog API Key", r#"(?i)\b(?:datadog|dd)[a-z0-9_.\-]{0,16}(?:api|app)[a-z0-9_.\-]{0,12}key["']?\s*[:=]\s*["']?[a-f0-9]{32}(?:[a-f0-9]{8})?\b"#, Severity::High),
+    ("Cloudflare API Token", r#"(?i)\bcloudflare[a-z0-9_.\-]{0,24}["']?\s*[:=]\s*["']?[A-Za-z0-9_\-]{37,40}\b"#, Severity::High),
+    ("Vercel Token", r#"(?i)\bvercel[a-z0-9_.\-]{0,24}token["']?\s*[:=]\s*["']?[A-Za-z0-9]{24}\b"#, Severity::High),
 ];
 
 lazy_static! {

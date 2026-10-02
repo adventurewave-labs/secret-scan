@@ -54,7 +54,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
 - [x] **12. Staged scan and pre-commit hook.** `--staged`, plus a
       `.pre-commit-hooks.yaml` so the repo works with pre-commit.
 - [x] **13. Stdin.** `secretscan -` reads from a pipe.
-- [ ] **14. More providers.** Azure storage keys, GCP service-account JSON,
+- [x] **14. More providers.** Azure storage keys, GCP service-account JSON,
       Databricks, Datadog, Cloudflare, Vercel, Supabase, Telegram, Postman,
       Linear, Notion, Doppler, Age keys, Docker Hub PATs.
 - [ ] **15. Offline structural validation.** Checksums that can be verified
@@ -139,3 +139,10 @@ to land as a single tested commit on the `claude/sota-loop` branch.
   crate from the network). CI test subset 133 → 141.
 - Loop 13: item 13. `secretscan -` reads standard input (`Scanner::scan_reader`);
   file and stdin scanning share one line loop. CI test subset 141 → 147.
+- Loop 14: item 14. 15 rules (58 → 73): Azure storage account key,
+  Databricks, Supabase, Telegram, Postman, Linear, Notion, Doppler, Docker
+  Hub, Grafana, Age, GCP service-account marker, and provider-anchored
+  Datadog, Cloudflare and Vercel. Formats are written from the providers'
+  documented token shapes; none was checked against a live credential. Each
+  rule has a positive and a near-miss test. On this repo the new rules add no
+  findings; `secretscan -q -f json .` takes 0.25 s. CI test subset 147 → 151.

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- 15 more rules (73 in total): Azure storage account keys, Databricks, Supabase, Telegram, Postman, Linear, Notion, Doppler, Docker Hub, Grafana, Age secret keys, GCP service-account files, Datadog, Cloudflare and Vercel
 - `secretscan -` scans standard input, so output from other commands can be piped in
 - `--staged` scans only what is staged for the next commit, and a `.pre-commit-hooks.yaml` makes the repository usable as a pre-commit hook
 - `--git` scans git history (every added line in every commit reachable from HEAD) and reports each secret at the commit that introduced it, with author and date; `--since <rev>` limits the scan to newer commits

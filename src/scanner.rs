@@ -622,6 +622,15 @@ impl Scanner {
             "Azure Tenant ID" | "Azure Client Secret" => 2.5,
             "PayPal Client ID" | "PayPal Secret" => 2.5,
             
+            // A structural marker, not a random string.
+            "GCP Service Account" => 0.0,
+
+            // Prefix- or provider-anchored formats: the shape is the signal.
+            "Azure Storage Account Key" | "Databricks Token" | "Supabase Access Token"
+            | "Telegram Bot Token" | "Postman API Key" | "Linear API Key" | "Notion Token"
+            | "Doppler Token" | "Docker Hub Token" | "Grafana Service Account Token"
+            | "Age Secret Key" | "Datadog API Key" | "Cloudflare API Token" | "Vercel Token" => 2.0,
+
             // Built-in rules without a specific threshold.
             _ if crate::patterns::is_builtin_rule(pattern_name) => 3.0,
 

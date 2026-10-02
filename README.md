@@ -16,7 +16,7 @@ A fast secret scanner for your codebase. secretscan helps you find and remediate
 ## ✨ Features
 
 - **🚀 Parallel Scanning**: Multi-threaded scanning with Rayon
-- **🎯 Pattern + Entropy Detection**: Regex-based pattern matching plus entropy analysis (30+ secret types)
+- **🎯 Pattern + Entropy Detection**: Regex-based pattern matching plus entropy analysis (73 built-in rules)
 - **📦 Zero Config**: Works out of the box with sensible defaults
 - **🔧 Customizable**: Add your own patterns and configure detection rules
 - **🌈 Beautiful Output**: Colored terminal output with progress indicators
@@ -199,7 +199,7 @@ secretscan uses advanced regex-based pattern matching to detect secrets:
 
 ## 🔧 Configuration
 
-SecretScanner automatically respects `.gitignore` patterns for file exclusion. The scanner comes with 58 built-in patterns covering all major secret types.
+SecretScanner automatically respects `.gitignore` patterns for file exclusion. The scanner comes with 73 built-in patterns covering all major secret types.
 
 ### Config file
 

@@ -43,7 +43,7 @@ fn both_pattern_maps_are_derived_from_the_table() {
 fn the_table_still_holds_every_shipped_rule() {
     // Guards the refactor: the count and a sample from each family must
     // survive. Update the count when rules are added or removed.
-    assert_eq!(rules().len(), 58);
+    assert_eq!(rules().len(), 73);
     for name in [
         "AWS Access Key ID",
         "GitHub Token",
