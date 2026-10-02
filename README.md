@@ -97,6 +97,8 @@ Options:
       --no-config             Ignore any .secretscan.toml
       --baseline <FILE>       Suppress findings recorded in this baseline file; only new findings are reported
       --write-baseline <FILE> Record every finding of this scan in a baseline file and exit 0
+      --exit-code <CODE>      Exit status when findings are reported [default: 1]
+      --no-fail               Exit 0 even when findings are reported (report-only mode); errors still exit 2
       --redact           Mask secret values in the output (safe for CI logs and shared reports)
   -h, --help             Print help
   -V, --version          Print version
@@ -243,6 +245,16 @@ so it is safe to commit. A recorded finding stays suppressed when the lines
 around it move; the same secret appearing in another file is reported.
 A baseline is a list of known problems, not a fix: the recorded secrets still
 need rotating.
+
+### Exit status
+
+| Status | Meaning |
+|---|---|
+| `0` | No findings reported |
+| `1` | Findings reported (change with `--exit-code <n>`, or `--no-fail` for report-only runs) |
+| `2` | The scan could not be trusted: bad arguments, missing path, invalid config or baseline, failed write |
+
+`--no-fail` never hides status `2`, so a broken scan cannot pass as a clean one.
 
 ### Severity
 

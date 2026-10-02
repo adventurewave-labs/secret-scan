@@ -27,6 +27,11 @@ impl From<&str> for OutputFormat {
     }
 }
 
+/// Exit status for anything that prevented a trustworthy result: bad
+/// arguments, unreadable config or baseline, a failed scan or write. Distinct
+/// from the findings status so CI can tell "secrets found" from "scan broken".
+const EXIT_ERROR: i32 = 2;
+
 fn main() {
     let matches = Command::new("secretscan")
         .version(env!("CARGO_PKG_VERSION"))
@@ -103,6 +108,21 @@ fn main() {
                 .value_name("FILE"),
         )
         .arg(
+            Arg::new("exit-code")
+                .long("exit-code")
+                .help("Exit status when findings are reported")
+                .value_name("CODE")
+                .value_parser(clap::value_parser!(u8))
+                .default_value("1")
+                .conflicts_with("no-fail"),
+        )
+        .arg(
+            Arg::new("no-fail")
+                .long("no-fail")
+                .help("Exit 0 even when findings are reported (report-only mode); errors still exit 2")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("redact")
                 .long("redact")
                 .help("Mask secret values in the output (safe for CI logs and shared reports)")
@@ -116,6 +136,11 @@ fn main() {
     let quiet = matches.get_flag("quiet");
     let skip_tests = matches.get_flag("skip-tests");
     let redact = matches.get_flag("redact");
+    let findings_exit_code: i32 = if matches.get_flag("no-fail") {
+        0
+    } else {
+        i32::from(*matches.get_one::<u8>("exit-code").unwrap())
+    };
     let baseline_path = matches.get_one::<String>("baseline");
     let write_baseline_path = matches.get_one::<String>("write-baseline");
 
@@ -124,7 +149,7 @@ fn main() {
         Ok(baseline) => baseline,
         Err(e) => {
             eprintln!("{} Cannot read baseline {}: {}", "Error:".red().bold(), path, e);
-            process::exit(2);
+            process::exit(EXIT_ERROR);
         }
     });
     let min_severity = matches
@@ -139,7 +164,7 @@ fn main() {
             "Error:".red().bold(),
             scan_path.display()
         );
-        process::exit(1);
+        process::exit(EXIT_ERROR);
     }
 
     // An explicit --config must exist; a discovered one is optional.
@@ -158,7 +183,7 @@ fn main() {
                     path.display(),
                     e
                 );
-                process::exit(2);
+                process::exit(EXIT_ERROR);
             }
         },
         None => Config::default(),
@@ -180,7 +205,7 @@ fn main() {
         Ok(s) => s,
         Err(e) => {
             eprintln!("{} Failed to create scanner: {}", "Error:".red().bold(), e);
-            process::exit(1);
+            process::exit(EXIT_ERROR);
         }
     };
 
@@ -214,7 +239,7 @@ fn main() {
                 pb.finish_with_message(format!("{} Scan failed", "✗".red().bold()));
             }
             eprintln!("{} Scan failed: {}", "Error:".red().bold(), e);
-            process::exit(1);
+            process::exit(EXIT_ERROR);
         }
     };
 
@@ -233,7 +258,7 @@ fn main() {
         let recorded = Baseline::from_findings(&findings);
         if let Err(e) = recorded.save(Path::new(path)) {
             eprintln!("{} Cannot write baseline {}: {}", "Error:".red().bold(), path, e);
-            process::exit(2);
+            process::exit(EXIT_ERROR);
         }
         if let Some(pb) = &progress {
             pb.finish_and_clear();
@@ -278,7 +303,7 @@ fn main() {
             Ok(sarif) => Some(sarif),
             Err(e) => {
                 eprintln!("{} Failed to format SARIF: {}", "Error:".red().bold(), e);
-                process::exit(1);
+                process::exit(EXIT_ERROR);
             }
         },
         _ => None,
@@ -295,7 +320,7 @@ fn main() {
             Ok(json) => json,
             Err(e) => {
                 eprintln!("{} Failed to format JSON: {}", "Error:".red().bold(), e);
-                process::exit(1);
+                process::exit(EXIT_ERROR);
             }
         },
         OutputFormat::Text => {
@@ -326,7 +351,7 @@ fn main() {
                 file_path,
                 e
             );
-            process::exit(1);
+            process::exit(EXIT_ERROR);
         }
         if !quiet {
             println!("{} Results written to {}", "✓".green().bold(), file_path);
@@ -339,6 +364,6 @@ fn main() {
     if findings.is_empty() {
         process::exit(0);
     } else {
-        process::exit(1); // Non-zero exit code when secrets are found
+        process::exit(findings_exit_code);
     }
 }

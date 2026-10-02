@@ -47,7 +47,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
 - [x] **9. Stopwords and placeholders.** Reject values such as `EXAMPLE`,
       `changeme`, `xxxx`, `<your-key>` and repeated-character runs for generic
       rules, as gitleaks does.
-- [ ] **10. Exit-code control.** `--exit-code <n>` and `--no-fail`, so the tool
+- [x] **10. Exit-code control.** `--exit-code <n>` and `--no-fail`, so the tool
       can run in report-only mode in CI.
 - [ ] **11. Git history scan.** `--git` walks commits via `git log -p` and
       reports commit, author and date; `--since <rev>` for incremental scans.
@@ -122,3 +122,6 @@ to land as a single tested commit on the `claude/sota-loop` branch.
   none added, every other finding unchanged. Known gap: a database URL whose
   password is a placeholder is still reported by the format-exact URL rules
   (PostgreSQL/MySQL/MongoDB/Redis URL). CI test subset 111 → 117.
+- Loop 10: item 10. `--exit-code`, `--no-fail`. Breaking change: operational
+  errors (missing path, failed scan, failed write) now exit 2; they used to
+  exit 1, the same status as "secrets found". CI test subset 117 → 122.
