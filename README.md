@@ -16,11 +16,13 @@ A fast secret scanner for your codebase. secretscan helps you find and remediate
 ## ✨ Features
 
 - **🚀 Parallel Scanning**: Multi-threaded scanning with Rayon
-- **🎯 Pattern + Entropy Detection**: Regex-based pattern matching plus entropy analysis (30+ secret types)
+- **🎯 Pattern + Entropy Detection**: Regex-based pattern matching plus entropy analysis (73 built-in rules)
 - **📦 Zero Config**: Works out of the box with sensible defaults
 - **🔧 Customizable**: Add your own patterns and configure detection rules
 - **🌈 Beautiful Output**: Colored terminal output with progress indicators
-- **📊 Multiple Formats**: JSON and text output formats
+- **📊 Multiple Formats**: JSON, SARIF 2.1.0 and text output formats
+- **🙈 Redaction**: `--redact` masks secret values so reports are safe in CI logs
+- **🔕 Inline Suppression**: `secretscan:allow` (or `gitleaks:allow`) on a line silences it
 - **🚫 GitIgnore Support**: Respects `.gitignore` patterns automatically
 - **🔍 Advanced Detection**: Supports obfuscated secrets (Base64, Hex, Character Arrays)
 
@@ -62,6 +64,22 @@ Output results as JSON:
 secretscan --format json
 ```
 
+Produce SARIF for GitHub code scanning (contains no secret text):
+```bash
+secretscan --format sarif --output results.sarif
+```
+
+Mask secret values in the report:
+```bash
+secretscan --redact
+```
+
+Scan piped input (findings are reported against `<stdin>`):
+```bash
+kubectl get secret app -o yaml | secretscan -
+git diff main...HEAD | secretscan --redact -
+```
+
 Save results to a file:
 ```bash
 secretscan --output results.txt
@@ -73,13 +91,24 @@ secretscan --output results.txt
 secretscan [OPTIONS] [PATH]
 
 Arguments:
-  [PATH]  Path to scan for secrets [default: .]
+  [PATH]  Path to scan for secrets, or - to read from standard input [default: .]
 
 Options:
-  -f, --format <FORMAT>  Output format [default: text] [possible values: json, text]
+  -f, --format <FORMAT>  Output format [default: text] [possible values: json, sarif, text]
   -o, --output <FILE>    Output file (default: stdout)
   -q, --quiet            Suppress progress bar
       --skip-tests       Skip test files and test-related patterns to reduce false positives
+      --min-severity <LEVEL>  Report only findings at or above this severity [default: low] [possible values: low, medium, high, critical]
+      --git                   Scan the git history of PATH (every added line in every commit) instead of the working tree
+      --staged                Scan only what is staged for the next commit (for pre-commit hooks)
+      --since <REV>           With --git: scan only commits after this revision (REV..HEAD)
+  -c, --config <FILE>         Config file (default: .secretscan.toml in the scanned directory, if present)
+      --no-config             Ignore any .secretscan.toml
+      --baseline <FILE>       Suppress findings recorded in this baseline file; only new findings are reported
+      --write-baseline <FILE> Record every finding of this scan in a baseline file and exit 0
+      --exit-code <CODE>      Exit status when findings are reported [default: 1]
+      --no-fail               Exit 0 even when findings are reported (report-only mode); errors still exit 2
+      --redact           Mask secret values in the output (safe for CI logs and shared reports)
   -h, --help             Print help
   -V, --version          Print version
 ```
@@ -170,7 +199,132 @@ secretscan uses advanced regex-based pattern matching to detect secrets:
 
 ## 🔧 Configuration
 
-SecretScanner automatically respects `.gitignore` patterns for file exclusion. The scanner comes with 50 built-in patterns covering all major secret types.
+SecretScanner automatically respects `.gitignore` patterns for file exclusion. The scanner comes with 73 built-in patterns covering all major secret types.
+
+### Config file
+
+Put a `.secretscan.toml` in the directory you scan (or pass `--config <file>`):
+
+```toml
+[allowlist]
+paths = ["^vendor/", "\\.lock$"]      # regexes matched against the file path
+regexes = ["EXAMPLE", "^changeme$"]   # regexes matched against the secret
+fingerprints = ["4ac28efb3d612a0a"]   # exact findings, from JSON or SARIF output
+
+[rules]
+disable = ["azure-tenant-id"]         # rule ids, as shown in JSON output
+
+[[rules.custom]]
+name = "Acme Token"
+regex = "acme_[a-f0-9]{32}"
+severity = "high"                     # low, medium (default), high or critical
+```
+
+Unknown keys, unknown rule ids and invalid regexes are errors (exit code 2),
+so a typo cannot silently disable a check. Every match of a custom rule is
+reported; the entropy filter applies only to built-in rules.
+
+### Placeholders
+
+Rules that match by variable name (passwords, generic secrets, connection
+strings) skip values that are clearly stand-ins: `changeme`, `<your-key>`,
+`${VAR}`, `{{ template }}`, `xxxx`, `REDACTED`, or a single repeated
+character. Rules that match a provider's exact token format are never
+filtered this way.
+
+### Suppressing a finding
+
+Add `secretscan:allow` (or the gitleaks-compatible `gitleaks:allow`) to the line:
+
+```python
+EXAMPLE_KEY = "AKIAIOSFODNN7EXAMPLE"  # secretscan:allow
+```
+
+### Scanning git history
+
+Deleting a secret in a later commit does not remove it from the repository.
+`--git` scans every line ever added on the current branch and reports each
+secret once, at the commit that introduced it:
+
+```bash
+secretscan --git                      # whole history of HEAD
+secretscan --git --since origin/main  # only commits not yet on main (for CI)
+```
+
+Each finding carries `commit`, `author` and `date` (in JSON, text and SARIF
+properties). Baselines, config, `--min-severity` and `--redact` work the same
+way as for a working-tree scan. Requires `git` on `PATH`. Only commits
+reachable from `HEAD` are scanned, not other branches or stashes.
+
+### Pre-commit hook
+
+`--staged` scans only the lines the next commit would add, so a secret is
+stopped before it enters history and findings already in the repository do
+not block unrelated commits.
+
+With [pre-commit](https://pre-commit.com), add to `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/adventurewave-labs/secret-scan
+    rev: <tag or commit>
+    hooks:
+      - id: secretscan
+```
+
+Or as a plain git hook, in `.git/hooks/pre-commit`:
+
+```sh
+#!/bin/sh
+exec secretscan --staged --redact --quiet
+```
+
+### Adopting on an existing codebase
+
+Record what is already there once, then fail only on new findings:
+
+```bash
+secretscan --write-baseline .secretscan-baseline.json   # exits 0
+secretscan --baseline .secretscan-baseline.json         # exits 1 only for new findings
+```
+
+The baseline stores fingerprints, rule ids and file paths, never secret text,
+so it is safe to commit. A recorded finding stays suppressed when the lines
+around it move; the same secret appearing in another file is reported.
+A baseline is a list of known problems, not a fix: the recorded secrets still
+need rotating.
+
+### Exit status
+
+| Status | Meaning |
+|---|---|
+| `0` | No findings reported |
+| `1` | Findings reported (change with `--exit-code <n>`, or `--no-fail` for report-only runs) |
+| `2` | The scan could not be trusted: bad arguments, missing path, invalid config or baseline, failed write |
+
+`--no-fail` never hides status `2`, so a broken scan cannot pass as a clean one.
+
+### Severity
+
+Every rule has a severity, shown in text output and included in JSON
+(`severity`) and SARIF (`level` and `security-severity`):
+
+| Severity | Meaning |
+|---|---|
+| `critical` | Key material that grants broad access on its own: private keys, AWS secret keys |
+| `high` | A credential in a provider's exact format, or a database URL with an embedded password |
+| `medium` | A contextual or generic match: password assignments, generic secrets, JWTs |
+| `low` | Identifiers and heuristics: client IDs, tenant IDs, strings that look encoded |
+
+`--min-severity high` reports only high and critical findings; the exit code
+follows what is reported, so this is the way to gate CI on real credentials
+while still being able to review the rest.
+
+### Stable output
+
+Findings are sorted by file, line and rule, and every SARIF result carries a
+fingerprint derived from the file path, rule and secret (not the line number),
+so results can be diffed between runs and tracked as code moves.
 
 ## 📊 Performance
 
