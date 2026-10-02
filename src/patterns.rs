@@ -43,11 +43,14 @@ const RULE_DEFS: &[(&str, &str, &[&str])] = &[
     ("JWT Token", r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}", &[]),
 
     // Private Keys
-    ("RSA Private Key", r"-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----", &[]),
+    ("RSA Private Key", r"-----BEGIN\s+RSA\s+PRIVATE\s+KEY-----", &[]),
     ("EC Private Key", r"-----BEGIN\s+EC\s+PRIVATE\s+KEY-----", &[]),
     ("PGP Private Key", r"-----BEGIN\s+PGP\s+PRIVATE\s+KEY\s+BLOCK-----", &[]),
     ("SSH Private Key", r"-----BEGIN\s+OPENSSH\s+PRIVATE\s+KEY-----", &[]),
-    ("Generic Private Key", r"-----BEGIN\s+[A-Z\s]+PRIVATE\s+KEY-----", &[]),
+    // Any PEM private-key header, including unlabelled PKCS#8
+    // ("BEGIN PRIVATE KEY"), DSA and ENCRYPTED. Shadowed by the specific
+    // rules above when one of them matches the same line.
+    ("Generic Private Key", r"-----BEGIN\s+(?:[A-Z]+\s+)*PRIVATE\s+KEY(?:\s+BLOCK)?-----", &[]),
     ("Multi-line Private Key", r"(?s)-----BEGIN[^-]+PRIVATE[^-]+-----.*?-----END[^-]+PRIVATE[^-]+-----", &[]),
 
     // Database URLs

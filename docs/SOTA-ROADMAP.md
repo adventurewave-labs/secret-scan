@@ -34,7 +34,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
       drift or cause false negatives. The `keywords` field on `Rule` is unused.
 - [x] **3. Drop the UUID rules.** "Heroku API Key" and "Azure Tenant ID" match
       every UUID. Require a provider keyword on the line, or remove them.
-- [ ] **4. Private-key dedupe.** One PEM block currently yields up to three
+- [x] **4. Private-key dedupe.** One PEM block currently yields up to three
       findings (RSA / Generic / Multi-line). Report it once.
 - [ ] **5. Remove debug output.** Delete the `[DEBUG]` `eprintln!` calls and the
       duplicated static/instance scan paths in `src/scanner.rs`.
@@ -89,3 +89,8 @@ to land as a single tested commit on the `claude/sota-loop` branch.
   provider name in the variable being assigned. On this repo each bare UUID
   had produced two findings (one per rule); those are gone, and the two UUIDs
   assigned to an Azure-named variable are still reported. CI test subset 74 → 78.
+- Loop 4: item 4. Private-key findings on this repo (outside files changed in
+  the commit): 26 → 10, one per key. Unlabelled PKCS#8 keys were reported as
+  "RSA Private Key"; they are now "Generic Private Key", which also covers DSA
+  and ENCRYPTED headers that previously matched nothing specific. Other
+  findings unchanged (459 before and after). CI test subset 78 → 84.

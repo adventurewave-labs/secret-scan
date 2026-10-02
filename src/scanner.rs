@@ -174,6 +174,17 @@ impl Scanner {
         Ok(findings)
     }
 
+    /// Specificity of a private-key rule: lower is more specific. `None` for
+    /// rules outside the private-key family.
+    fn private_key_rank(pattern_name: &str) -> Option<u8> {
+        match pattern_name {
+            "RSA Private Key" | "EC Private Key" | "PGP Private Key" | "SSH Private Key" => Some(0),
+            "Generic Private Key" => Some(1),
+            "Multi-line Private Key" => Some(2),
+            _ => None,
+        }
+    }
+
     /// True when the line opts out of scanning via `secretscan:allow`
     /// (or the gitleaks-compatible `gitleaks:allow`).
     pub fn has_inline_allow(line: &str) -> bool {
@@ -182,13 +193,14 @@ impl Scanner {
 
     /// Remove redundant findings that describe the same secret on the same line.
     ///
-    /// Three surgical rules, applied per (file, line):
+    /// Four surgical rules, applied per (file, line):
     ///   1. Generic catch-all patterns (Suspicious Base64/Hex, Generic Secret, …) are
     ///      dropped when a specific pattern already matched overlapping text.
     ///   2. "Firebase API Key" is dropped when "Google API Key" matched the identical
     ///      text — the two formats are byte-identical (Firebase keys ARE Google keys).
     ///   3. The contextual "AWS Access Key" match is dropped when the bare
     ///      "AWS Access Key ID" already reported the key it contains.
+    ///   4. A private key is reported once, under its most specific rule.
     fn dedupe_overlapping_findings(findings: &mut Vec<Finding>) {
         const GENERIC: [&str; 5] = [
             "Suspicious Base64",
@@ -222,6 +234,18 @@ impl Scanner {
                     .iter()
                     .any(|o| same_line(o) && o.2 == "Google API Key" && o.3 == f.matched_text);
                 if shadowed {
+                    return false;
+                }
+            }
+            // Rule 4: one private key, one finding. A PEM header matches the
+            // specific rule, the generic rule and (when the whole block is on
+            // one line) the multi-line rule; keep only the most specific.
+            if let Some(rank) = Self::private_key_rank(&f.pattern_name) {
+                let outranked = snapshot.iter().any(|o| {
+                    same_line(o)
+                        && Self::private_key_rank(&o.2).is_some_and(|other| other < rank)
+                });
+                if outranked {
                     return false;
                 }
             }
