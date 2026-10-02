@@ -157,7 +157,30 @@ impl Scanner {
 
     pub fn scan_directory(&self, path: &Path) -> Result<Vec<Finding>, ScannerError> {
         let mut findings = self.scan_directory_optimized(path)?;
-        Self::dedupe_overlapping_findings(&mut findings);
+        Self::postprocess(&mut findings);
+        Ok(findings)
+    }
+
+    /// Scan a single line of text that did not come from a file on disk
+    /// (for example an added line in a git diff). The result is raw: pass the
+    /// collected findings through [`Scanner::postprocess`].
+    pub fn scan_text_line(&self, line: &str, line_number: usize, file_path: &Path) -> Vec<Finding> {
+        let mut findings = Vec::new();
+        Self::scan_line(
+            line,
+            line_number,
+            file_path,
+            &self.matcher,
+            &self.context_filter,
+            &mut findings,
+        );
+        findings
+    }
+
+    /// Turn raw findings into reported findings: collapse overlapping rules,
+    /// honour inline allow markers, and sort.
+    pub fn postprocess(findings: &mut Vec<Finding>) {
+        Self::dedupe_overlapping_findings(findings);
         // Inline suppression: a line carrying an allow marker is an explicit,
         // reviewable decision by the author (same convention as gitleaks).
         findings.retain(|f| !Self::has_inline_allow(&f.line_content));
@@ -171,7 +194,6 @@ impl Scanner {
                 &b.matched_text,
             ))
         });
-        Ok(findings)
     }
 
     /// Specificity of a private-key rule: lower is more specific. `None` for

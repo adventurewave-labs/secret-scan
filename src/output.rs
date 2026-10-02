@@ -1,3 +1,4 @@
+use crate::git::CommitInfo;
 use crate::patterns::{severity_for, Severity};
 use crate::Finding;
 use serde_json;
@@ -20,11 +21,23 @@ pub fn format_as_json_with_fingerprints(
     findings: &[Finding],
     fingerprints: &[String],
 ) -> Result<String, serde_json::Error> {
+    format_as_json_report(findings, fingerprints, &[])
+}
+
+/// The full JSON report. `commits` is either empty (a working-tree scan) or
+/// parallel to `findings` (a history scan), in which case each element also
+/// carries `commit`, `author` and `date`.
+pub fn format_as_json_report(
+    findings: &[Finding],
+    fingerprints: &[String],
+    commits: &[CommitInfo],
+) -> Result<String, serde_json::Error> {
     let items: Vec<serde_json::Value> = findings
         .iter()
         .zip(fingerprints.iter())
-        .map(|(finding, fingerprint)| {
-            serde_json::json!({
+        .enumerate()
+        .map(|(index, (finding, fingerprint))| {
+            let mut item = serde_json::json!({
                 "file_path": finding.file_path,
                 "line_number": finding.line_number,
                 "line_content": finding.line_content,
@@ -34,20 +47,37 @@ pub fn format_as_json_with_fingerprints(
                 "matched_text": finding.matched_text,
                 "entropy": finding.entropy,
                 "fingerprint": fingerprint,
-            })
+            });
+            if let Some(info) = commits.get(index) {
+                item["commit"] = serde_json::json!(info.commit);
+                item["author"] = serde_json::json!(info.author);
+                item["date"] = serde_json::json!(info.date);
+            }
+            item
         })
         .collect();
     serde_json::to_string_pretty(&items)
 }
 
 pub fn format_as_text(findings: &[Finding]) -> String {
+    format_as_text_report(findings, &[])
+}
+
+/// Text report; `commits` as for [`format_as_json_report`].
+pub fn format_as_text_report(findings: &[Finding], commits: &[CommitInfo]) -> String {
     if findings.is_empty() {
         return "No secrets found.".to_string();
     }
 
     let mut output = String::new();
 
-    for finding in findings {
+    for (index, finding) in findings.iter().enumerate() {
+        if let Some(info) = commits.get(index) {
+            output.push_str(&format!(
+                "Commit: {} ({}, {})\n",
+                info.commit, info.author, info.date
+            ));
+        }
         output.push_str(&format!(
             "File: {}\nline {}: {}\nPattern: {}\nSeverity: {}\nMatch: {}\nEntropy: {:.1}\n\n",
             finding.file_path.display(),
@@ -159,6 +189,16 @@ pub fn redact_findings(findings: &mut [Finding]) {
 /// Secrets never appear in SARIF output: results carry the rule, location and
 /// a fingerprint, so the report is safe to upload as a CI artifact.
 pub fn format_as_sarif(findings: &[Finding], tool_version: &str) -> Result<String, serde_json::Error> {
+    format_as_sarif_report(findings, tool_version, &[])
+}
+
+/// SARIF report; `commits` as for [`format_as_json_report`]. Commit details
+/// go in each result's `properties`.
+pub fn format_as_sarif_report(
+    findings: &[Finding],
+    tool_version: &str,
+    commits: &[CommitInfo],
+) -> Result<String, serde_json::Error> {
     let mut rule_names: Vec<&str> = findings.iter().map(|f| f.pattern_name.as_str()).collect();
     rule_names.sort_unstable();
     rule_names.dedup();
@@ -181,9 +221,10 @@ pub fn format_as_sarif(findings: &[Finding], tool_version: &str) -> Result<Strin
 
     let results: Vec<serde_json::Value> = findings
         .iter()
-        .map(|f| {
+        .enumerate()
+        .map(|(index, f)| {
             let uri = normalize_path(&f.file_path);
-            serde_json::json!({
+            let mut result = serde_json::json!({
                 "ruleId": rule_id(&f.pattern_name),
                 "level": severity_for(&f.pattern_name).sarif_level(),
                 "properties": { "severity": severity_for(&f.pattern_name).as_str() },
@@ -195,7 +236,13 @@ pub fn format_as_sarif(findings: &[Finding], tool_version: &str) -> Result<Strin
                     }
                 }],
                 "partialFingerprints": { "secretscan/v1": fingerprint(f) }
-            })
+            });
+            if let Some(info) = commits.get(index) {
+                result["properties"]["commit"] = serde_json::json!(info.commit);
+                result["properties"]["author"] = serde_json::json!(info.author);
+                result["properties"]["date"] = serde_json::json!(info.date);
+            }
+            result
         })
         .collect();
 

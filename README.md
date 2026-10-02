@@ -93,6 +93,8 @@ Options:
   -q, --quiet            Suppress progress bar
       --skip-tests       Skip test files and test-related patterns to reduce false positives
       --min-severity <LEVEL>  Report only findings at or above this severity [default: low] [possible values: low, medium, high, critical]
+      --git                   Scan the git history of PATH (every added line in every commit) instead of the working tree
+      --since <REV>           With --git: scan only commits after this revision (REV..HEAD)
   -c, --config <FILE>         Config file (default: .secretscan.toml in the scanned directory, if present)
       --no-config             Ignore any .secretscan.toml
       --baseline <FILE>       Suppress findings recorded in this baseline file; only new findings are reported
@@ -230,6 +232,22 @@ Add `secretscan:allow` (or the gitleaks-compatible `gitleaks:allow`) to the line
 ```python
 EXAMPLE_KEY = "AKIAIOSFODNN7EXAMPLE"  # secretscan:allow
 ```
+
+### Scanning git history
+
+Deleting a secret in a later commit does not remove it from the repository.
+`--git` scans every line ever added on the current branch and reports each
+secret once, at the commit that introduced it:
+
+```bash
+secretscan --git                      # whole history of HEAD
+secretscan --git --since origin/main  # only commits not yet on main (for CI)
+```
+
+Each finding carries `commit`, `author` and `date` (in JSON, text and SARIF
+properties). Baselines, config, `--min-severity` and `--redact` work the same
+way as for a working-tree scan. Requires `git` on `PATH`. Only commits
+reachable from `HEAD` are scanned, not other branches or stashes.
 
 ### Adopting on an existing codebase
 

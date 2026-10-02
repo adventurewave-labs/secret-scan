@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `--git` scans git history (every added line in every commit reachable from HEAD) and reports each secret at the commit that introduced it, with author and date; `--since <rev>` limits the scan to newer commits
 - `--exit-code <n>` and `--no-fail` to control the exit status when findings are reported
 - `.secretscan.toml` config file (`--config`, `--no-config`): allowlist by path, secret regex or fingerprint; disable rules by id; define custom rules with a severity
 - `--write-baseline <file>` records the current findings (fingerprints only, no secret text) and `--baseline <file>` suppresses them, so only new findings are reported and fail the run

@@ -2,6 +2,7 @@ pub mod baseline;
 pub mod config;
 pub mod context;
 pub mod entropy;
+pub mod git;
 pub mod output;
 pub mod patterns;
 pub mod placeholder;

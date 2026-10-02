@@ -2,6 +2,7 @@ use clap::{Arg, ArgAction, Command};
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
 use secretscan::config::Config;
+use secretscan::git::{scan_history, CommitInfo, HistoryFinding};
 use secretscan::patterns::{get_all_patterns_owned, register_custom_severity, Severity};
 use secretscan::{output::*, ContextFilter, Scanner};
 use std::fs;
@@ -80,6 +81,19 @@ fn main() {
                 .value_name("LEVEL")
                 .value_parser(["low", "medium", "high", "critical"])
                 .default_value("low"),
+        )
+        .arg(
+            Arg::new("git")
+                .long("git")
+                .help("Scan the git history of PATH (every added line in every commit) instead of the working tree")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("since")
+                .long("since")
+                .help("With --git: scan only commits after this revision (REV..HEAD)")
+                .value_name("REV")
+                .requires("git"),
         )
         .arg(
             Arg::new("config")
@@ -232,7 +246,26 @@ fn main() {
     };
 
     // Perform scan
-    let mut findings = match scanner.scan_directory(&scan_path) {
+    let mut history: Vec<HistoryFinding> = Vec::new();
+    let scan_result = if matches.get_flag("git") {
+        let since = matches.get_one::<String>("since").map(String::as_str);
+        match scan_history(&scanner, &scan_path, since) {
+            Ok(found) => {
+                history = found;
+                Ok(history.iter().map(|h| h.finding.clone()).collect())
+            }
+            Err(e) => {
+                if let Some(pb) = &progress {
+                    pb.finish_and_clear();
+                }
+                eprintln!("{} {}", "Error:".red().bold(), e);
+                process::exit(EXIT_ERROR);
+            }
+        }
+    } else {
+        scanner.scan_directory(&scan_path)
+    };
+    let mut findings: Vec<secretscan::Finding> = match scan_result {
         Ok(findings) => findings,
         Err(e) => {
             if let Some(pb) = &progress {
@@ -296,10 +329,21 @@ fn main() {
     // Fingerprints identify the real secret, so take them before redaction.
     let fingerprints: Vec<String> = findings.iter().map(fingerprint).collect();
 
+    // Commit details for the findings that survived filtering, in the same
+    // order; empty for a working-tree scan.
+    let commits: Vec<CommitInfo> = if history.is_empty() {
+        Vec::new()
+    } else {
+        findings
+            .iter()
+            .filter_map(|f| history.iter().find(|h| h.finding == *f).map(|h| h.commit.clone()))
+            .collect()
+    };
+
     // SARIF is rendered before redaction: its fingerprints are derived from
     // the real secret, and SARIF output never contains secret text anyway.
     let sarif = match format {
-        OutputFormat::Sarif => match format_as_sarif(&findings, env!("CARGO_PKG_VERSION")) {
+        OutputFormat::Sarif => match format_as_sarif_report(&findings, env!("CARGO_PKG_VERSION"), &commits) {
             Ok(sarif) => Some(sarif),
             Err(e) => {
                 eprintln!("{} Failed to format SARIF: {}", "Error:".red().bold(), e);
@@ -316,7 +360,7 @@ fn main() {
     // Format output
     let output_content = match format {
         OutputFormat::Sarif => sarif.unwrap_or_default(),
-        OutputFormat::Json => match format_as_json_with_fingerprints(&findings, &fingerprints) {
+        OutputFormat::Json => match format_as_json_report(&findings, &fingerprints, &commits) {
             Ok(json) => json,
             Err(e) => {
                 eprintln!("{} Failed to format JSON: {}", "Error:".red().bold(), e);
@@ -335,7 +379,7 @@ fn main() {
                         findings.len()
                     )
                     .bold(),
-                    format_as_text(&findings),
+                    format_as_text_report(&findings, &commits),
                     generate_summary(&findings).bright_blue()
                 )
             }

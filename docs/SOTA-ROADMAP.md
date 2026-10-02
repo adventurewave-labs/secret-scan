@@ -49,7 +49,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
       rules, as gitleaks does.
 - [x] **10. Exit-code control.** `--exit-code <n>` and `--no-fail`, so the tool
       can run in report-only mode in CI.
-- [ ] **11. Git history scan.** `--git` walks commits via `git log -p` and
+- [x] **11. Git history scan.** `--git` walks commits via `git log -p` and
       reports commit, author and date; `--since <rev>` for incremental scans.
 - [ ] **12. Staged scan and pre-commit hook.** `--staged`, plus a
       `.pre-commit-hooks.yaml` so the repo works with pre-commit.
@@ -125,3 +125,9 @@ to land as a single tested commit on the `claude/sota-loop` branch.
 - Loop 10: item 10. `--exit-code`, `--no-fail`. Breaking change: operational
   errors (missing path, failed scan, failed write) now exit 2; they used to
   exit 1, the same status as "secrets found". CI test subset 117 → 122.
+- Loop 11: item 11. `--git` / `--since`, `src/git.rs` (shells out to `git log
+  -p --unified=0 --reverse`; no new dependency). Each secret is reported once,
+  at the oldest scanned commit that added it. Limits: only commits reachable
+  from HEAD; the whole log is read into memory, so very large histories will
+  need streaming. Sanity run on this repo (69 commits in the shallow clone):
+  0.63 s, 423 findings across 16 commits. CI test subset 122 → 133.
