@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `--write-baseline <file>` records the current findings (fingerprints only, no secret text) and `--baseline <file>` suppresses them, so only new findings are reported and fail the run
 - Severity (`low`, `medium`, `high`, `critical`) on every rule, shown in text output, JSON and SARIF (`level` and `security-severity`)
 - `--min-severity <level>` to report, and fail on, only findings at or above a severity
 - JSON output now includes `rule_id`, `severity` and `fingerprint` for each finding

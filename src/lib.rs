@@ -1,3 +1,4 @@
+pub mod baseline;
 pub mod context;
 pub mod entropy;
 pub mod output;

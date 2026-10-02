@@ -4,7 +4,8 @@ use indicatif::{ProgressBar, ProgressStyle};
 use secretscan::patterns::Severity;
 use secretscan::{output::*, ContextFilter, Scanner};
 use std::fs;
-use std::path::PathBuf;
+use secretscan::baseline::Baseline;
+use std::path::{Path, PathBuf};
 use std::process;
 
 #[derive(Clone)]
@@ -75,6 +76,18 @@ fn main() {
                 .default_value("low"),
         )
         .arg(
+            Arg::new("baseline")
+                .long("baseline")
+                .help("Suppress findings recorded in this baseline file; only new findings are reported")
+                .value_name("FILE"),
+        )
+        .arg(
+            Arg::new("write-baseline")
+                .long("write-baseline")
+                .help("Record every finding of this scan in a baseline file and exit 0")
+                .value_name("FILE"),
+        )
+        .arg(
             Arg::new("redact")
                 .long("redact")
                 .help("Mask secret values in the output (safe for CI logs and shared reports)")
@@ -88,6 +101,17 @@ fn main() {
     let quiet = matches.get_flag("quiet");
     let skip_tests = matches.get_flag("skip-tests");
     let redact = matches.get_flag("redact");
+    let baseline_path = matches.get_one::<String>("baseline");
+    let write_baseline_path = matches.get_one::<String>("write-baseline");
+
+    // Load the baseline before scanning: a bad path should fail immediately.
+    let baseline = baseline_path.map(|path| match Baseline::load(Path::new(path)) {
+        Ok(baseline) => baseline,
+        Err(e) => {
+            eprintln!("{} Cannot read baseline {}: {}", "Error:".red().bold(), path, e);
+            process::exit(2);
+        }
+    });
     let min_severity = matches
         .get_one::<String>("min-severity")
         .and_then(|level| Severity::parse(level))
@@ -149,11 +173,43 @@ fn main() {
     // Applied before anything is reported, so the summary line, the output
     // and the exit code all describe the same set of findings.
     filter_by_severity(&mut findings, min_severity);
+
+    if let Some(path) = write_baseline_path {
+        let recorded = Baseline::from_findings(&findings);
+        if let Err(e) = recorded.save(Path::new(path)) {
+            eprintln!("{} Cannot write baseline {}: {}", "Error:".red().bold(), path, e);
+            process::exit(2);
+        }
+        if let Some(pb) = &progress {
+            pb.finish_and_clear();
+        }
+        if !quiet {
+            println!(
+                "{} Recorded {} findings in {}",
+                "✓".green().bold(),
+                recorded.len(),
+                path
+            );
+        }
+        process::exit(0);
+    }
+
+    let suppressed = baseline
+        .as_ref()
+        .map(|baseline| baseline.suppress(&mut findings))
+        .unwrap_or(0);
+
     if let Some(pb) = &progress {
+        let note = if baseline.is_some() {
+            format!(" ({} suppressed by baseline)", suppressed)
+        } else {
+            String::new()
+        };
         pb.finish_with_message(format!(
-            "{} Found {} potential secrets",
+            "{} Found {} potential secrets{}",
             "✓".green().bold(),
-            findings.len()
+            findings.len(),
+            note
         ));
     }
 

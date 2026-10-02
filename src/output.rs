@@ -99,6 +99,18 @@ pub fn rule_id(pattern_name: &str) -> String {
     id.trim_end_matches('-').to_string()
 }
 
+/// A path as it appears in reports and fingerprints: forward slashes, no
+/// leading `./`. `secretscan .` and `secretscan src` therefore agree on the
+/// identity of a finding in `src/config.rs`.
+pub fn normalize_path(path: &std::path::Path) -> String {
+    let text = path.to_string_lossy().replace('\\', "/");
+    let mut trimmed = text.as_str();
+    while let Some(rest) = trimmed.strip_prefix("./") {
+        trimmed = rest;
+    }
+    trimmed.to_string()
+}
+
 /// Stable fingerprint for a finding: FNV-1a 64 over path, rule and secret.
 ///
 /// Deliberately excludes the line number so a finding keeps its identity when
@@ -106,9 +118,9 @@ pub fn rule_id(pattern_name: &str) -> String {
 /// output is not guaranteed stable across Rust releases.
 pub fn fingerprint(finding: &Finding) -> String {
     let mut hash: u64 = 0xcbf29ce484222325;
-    let path = finding.file_path.to_string_lossy();
+    let path = normalize_path(&finding.file_path);
     let rule = rule_id(&finding.pattern_name);
-    for part in [path.as_ref(), rule.as_str(), finding.matched_text.as_str()] {
+    for part in [path.as_str(), rule.as_str(), finding.matched_text.as_str()] {
         for byte in part.as_bytes().iter().chain(std::iter::once(&0u8)) {
             hash ^= u64::from(*byte);
             hash = hash.wrapping_mul(0x100000001b3);
@@ -170,11 +182,7 @@ pub fn format_as_sarif(findings: &[Finding], tool_version: &str) -> Result<Strin
     let results: Vec<serde_json::Value> = findings
         .iter()
         .map(|f| {
-            let uri = f
-                .file_path
-                .to_string_lossy()
-                .trim_start_matches("./")
-                .replace('\\', "/");
+            let uri = normalize_path(&f.file_path);
             serde_json::json!({
                 "ruleId": rule_id(&f.pattern_name),
                 "level": severity_for(&f.pattern_name).sarif_level(),

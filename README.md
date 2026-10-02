@@ -93,6 +93,8 @@ Options:
   -q, --quiet            Suppress progress bar
       --skip-tests       Skip test files and test-related patterns to reduce false positives
       --min-severity <LEVEL>  Report only findings at or above this severity [default: low] [possible values: low, medium, high, critical]
+      --baseline <FILE>       Suppress findings recorded in this baseline file; only new findings are reported
+      --write-baseline <FILE> Record every finding of this scan in a baseline file and exit 0
       --redact           Mask secret values in the output (safe for CI logs and shared reports)
   -h, --help             Print help
   -V, --version          Print version
@@ -193,6 +195,21 @@ Add `secretscan:allow` (or the gitleaks-compatible `gitleaks:allow`) to the line
 ```python
 EXAMPLE_KEY = "AKIAIOSFODNN7EXAMPLE"  # secretscan:allow
 ```
+
+### Adopting on an existing codebase
+
+Record what is already there once, then fail only on new findings:
+
+```bash
+secretscan --write-baseline .secretscan-baseline.json   # exits 0
+secretscan --baseline .secretscan-baseline.json         # exits 1 only for new findings
+```
+
+The baseline stores fingerprints, rule ids and file paths, never secret text,
+so it is safe to commit. A recorded finding stays suppressed when the lines
+around it move; the same secret appearing in another file is reported.
+A baseline is a list of known problems, not a fix: the recorded secrets still
+need rotating.
 
 ### Severity
 

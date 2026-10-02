@@ -40,7 +40,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
       duplicated static/instance scan paths in `src/scanner.rs`.
 - [x] **6. Severity and confidence.** Add both to rules, JSON and SARIF
       (`level`, `security-severity`); add `--min-severity`.
-- [ ] **7. Baseline.** `--baseline <file>` suppresses known fingerprints;
+- [x] **7. Baseline.** `--baseline <file>` suppresses known fingerprints;
       `--write-baseline <file>` records them. Exit code reflects new findings only.
 - [ ] **8. Config file.** `.secretscan.toml`: allowlisted paths, regexes and
       fingerprints, disabled rules, custom rules.
@@ -108,3 +108,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
   confidence score was not added: nothing in the scanner produces one yet
   (item 15 would). The unused `keywords` field on `Rule` is removed.
   CI test subset 88 → 96.
+- Loop 7: item 7. `--write-baseline` / `--baseline`, `src/baseline.rs`.
+  Fingerprints now use a normalized path (no leading `./`, forward slashes),
+  so they changed for any path that was scanned as `./…`; nothing had been
+  released with the old values. Baseline errors exit 2. CI test subset 96 → 102.
