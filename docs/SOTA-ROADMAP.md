@@ -44,7 +44,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
       `--write-baseline <file>` records them. Exit code reflects new findings only.
 - [x] **8. Config file.** `.secretscan.toml`: allowlisted paths, regexes and
       fingerprints, disabled rules, custom rules.
-- [ ] **9. Stopwords and placeholders.** Reject values such as `EXAMPLE`,
+- [x] **9. Stopwords and placeholders.** Reject values such as `EXAMPLE`,
       `changeme`, `xxxx`, `<your-key>` and repeated-character runs for generic
       rules, as gitleaks does.
 - [ ] **10. Exit-code control.** `--exit-code <n>` and `--no-fail`, so the tool
@@ -117,3 +117,8 @@ to land as a single tested commit on the `claude/sota-loop` branch.
   with severity. Strict parsing, exit 2 on any mistake. Behaviour change:
   patterns that are not built-in (custom rules, `Scanner::with_patterns`) are
   no longer subject to the entropy filter. CI test subset 102 → 111.
+- Loop 9: item 9. `src/placeholder.rs`, applied to 13 name-based rules only.
+  On this repo: 17 findings removed (11 `://user:password@`, 6 example values),
+  none added, every other finding unchanged. Known gap: a database URL whose
+  password is a placeholder is still reported by the format-exact URL rules
+  (PostgreSQL/MySQL/MongoDB/Redis URL). CI test subset 111 → 117.

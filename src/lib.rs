@@ -4,6 +4,7 @@ pub mod context;
 pub mod entropy;
 pub mod output;
 pub mod patterns;
+pub mod placeholder;
 pub mod scanner;
 
 use serde::{Deserialize, Serialize};

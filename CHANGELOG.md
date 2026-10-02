@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rule_id` and `fingerprint` helpers in the library API
 
 ### Changed
+- The generic, name-based rules (passwords, generic secrets, connection strings) no longer report placeholder values such as `changeme`, `<your-key>`, `${VAR}` or `xxxx`. Format-exact rules are unaffected
 - Custom patterns passed to `Scanner::with_patterns` are no longer subject to the entropy filter; every match is reported
 - One scan path for all files regardless of size; removed the separate chunked path for files over 10 MB, the legacy `scan_directory_rayon` and the `SECRETSCAN_DEBUG` output
 - Built-in rules are defined once, in a single `RULE_DEFS` table; `patterns::rules()` exposes them with stable ids. Detection behaviour is unchanged

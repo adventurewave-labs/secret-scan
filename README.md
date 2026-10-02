@@ -213,6 +213,14 @@ Unknown keys, unknown rule ids and invalid regexes are errors (exit code 2),
 so a typo cannot silently disable a check. Every match of a custom rule is
 reported; the entropy filter applies only to built-in rules.
 
+### Placeholders
+
+Rules that match by variable name (passwords, generic secrets, connection
+strings) skip values that are clearly stand-ins: `changeme`, `<your-key>`,
+`${VAR}`, `{{ template }}`, `xxxx`, `REDACTED`, or a single repeated
+character. Rules that match a provider's exact token format are never
+filtered this way.
+
 ### Suppressing a finding
 
 Add `secretscan:allow` (or the gitleaks-compatible `gitleaks:allow`) to the line:

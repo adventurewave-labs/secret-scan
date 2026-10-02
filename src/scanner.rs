@@ -442,10 +442,26 @@ impl Scanner {
         findings: &mut Vec<Finding>,
     ) {
         for (pattern_name, pattern) in patterns.candidates(line) {
-            let Some(mat) = pattern.find(line) else {
+            let Some(captures) = pattern.captures(line) else {
                 continue;
             };
-            let matched_text = mat.as_str().to_string();
+            let matched_text = captures[0].to_string();
+
+            // For the generic, name-based rules the value is the last capture
+            // group; documentation stand-ins ("changeme", "<your-key>",
+            // "${VAR}") are not findings.
+            if crate::placeholder::applies_to(pattern_name) {
+                let value = captures
+                    .iter()
+                    .skip(1)
+                    .flatten()
+                    .last()
+                    .map(|group| group.as_str())
+                    .unwrap_or(&matched_text);
+                if crate::placeholder::is_placeholder(value) {
+                    continue;
+                }
+            }
 
             if context_filter.should_skip_line(line, &matched_text) {
                 continue;
