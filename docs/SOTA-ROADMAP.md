@@ -36,7 +36,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
       every UUID. Require a provider keyword on the line, or remove them.
 - [x] **4. Private-key dedupe.** One PEM block currently yields up to three
       findings (RSA / Generic / Multi-line). Report it once.
-- [ ] **5. Remove debug output.** Delete the `[DEBUG]` `eprintln!` calls and the
+- [x] **5. Remove debug output.** Delete the `[DEBUG]` `eprintln!` calls and the
       duplicated static/instance scan paths in `src/scanner.rs`.
 - [ ] **6. Severity and confidence.** Add both to rules, JSON and SARIF
       (`level`, `security-severity`); add `--min-severity`.
@@ -94,3 +94,11 @@ to land as a single tested commit on the `claude/sota-loop` branch.
   "RSA Private Key"; they are now "Generic Private Key", which also covers DSA
   and ENCRYPTED headers that previously matched nothing specific. Other
   findings unchanged (459 before and after). CI test subset 78 → 84.
+- Loop 5: item 5. `src/scanner.rs` 1,155 → 775 lines: four copies of the
+  per-line loop (instance/static × buffered/chunked), the legacy
+  `scan_directory_rayon` and all `[DEBUG]` output replaced by one `scan_line`.
+  Confirmed fix: a file containing any invalid UTF-8 byte was skipped entirely
+  (the new test fails on the old code). Not confirmed: the removed >10 MB
+  chunked path skipped the entropy filter by inspection, but the large-file
+  test also passes on the old code, so no behaviour change is claimed there.
+  Findings on this repo identical before and after. CI test subset 84 → 88.

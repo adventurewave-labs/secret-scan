@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rule_id` and `fingerprint` helpers in the library API
 
 ### Changed
+- One scan path for all files regardless of size; removed the separate chunked path for files over 10 MB, the legacy `scan_directory_rayon` and the `SECRETSCAN_DEBUG` output
 - Built-in rules are defined once, in a single `RULE_DEFS` table; `patterns::rules()` exposes them with stable ids. Detection behaviour is unchanged
 
 ### Performance
@@ -22,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Four regexes used for obfuscation analysis were recompiled for every scanned line; they are now compiled once
 
 ### Fixed
+- A file containing any invalid UTF-8 byte was skipped entirely; it is now scanned, with invalid bytes replaced
 - A single private key produced up to three findings (specific, generic and multi-line rules); it is now reported once under its most specific rule
 - Unlabelled PKCS#8 keys (`BEGIN PRIVATE KEY`) were reported as "RSA Private Key"; they are now "Generic Private Key"
 - "Heroku API Key" and "Azure Tenant ID" reported every UUID in a codebase, twice; both now require the provider name in the variable being assigned
