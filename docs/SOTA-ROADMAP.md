@@ -53,7 +53,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
       reports commit, author and date; `--since <rev>` for incremental scans.
 - [x] **12. Staged scan and pre-commit hook.** `--staged`, plus a
       `.pre-commit-hooks.yaml` so the repo works with pre-commit.
-- [ ] **13. Stdin.** `secretscan -` reads from a pipe.
+- [x] **13. Stdin.** `secretscan -` reads from a pipe.
 - [ ] **14. More providers.** Azure storage keys, GCP service-account JSON,
       Databricks, Datadog, Cloudflare, Vercel, Supabase, Telegram, Postman,
       Linear, Notion, Doppler, Age keys, Docker Hub PATs.
@@ -137,3 +137,5 @@ to land as a single tested commit on the `claude/sota-loop` branch.
   with redacted output, a clean one passes. Not tested: running through the
   `pre-commit` framework itself (it is not installed here and would build the
   crate from the network). CI test subset 133 → 141.
+- Loop 13: item 13. `secretscan -` reads standard input (`Scanner::scan_reader`);
+  file and stdin scanning share one line loop. CI test subset 141 → 147.

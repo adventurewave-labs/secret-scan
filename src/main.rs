@@ -33,6 +33,9 @@ impl From<&str> for OutputFormat {
 /// from the findings status so CI can tell "secrets found" from "scan broken".
 const EXIT_ERROR: i32 = 2;
 
+/// File name reported for findings read from standard input.
+const STDIN_LABEL: &str = "<stdin>";
+
 fn main() {
     let matches = Command::new("secretscan")
         .version(env!("CARGO_PKG_VERSION"))
@@ -40,7 +43,7 @@ fn main() {
         .about("A Rust CLI tool for detecting secrets in codebases")
         .arg(
             Arg::new("path")
-                .help("Path to scan for secrets")
+                .help("Path to scan for secrets, or - to read from standard input")
                 .value_name("PATH")
                 .default_value(".")
                 .index(1),
@@ -178,8 +181,17 @@ fn main() {
         .and_then(|level| Severity::parse(level))
         .unwrap_or(Severity::Low);
 
+    let from_stdin = scan_path == Path::new("-");
+    if from_stdin && (matches.get_flag("git") || matches.get_flag("staged")) {
+        eprintln!(
+            "{} --git and --staged need a repository path, not standard input",
+            "Error:".red().bold()
+        );
+        process::exit(EXIT_ERROR);
+    }
+
     // Validate scan path
-    if !scan_path.exists() {
+    if !from_stdin && !scan_path.exists() {
         eprintln!(
             "{} Path does not exist: {}",
             "Error:".red().bold(),
@@ -280,6 +292,8 @@ fn main() {
                 process::exit(EXIT_ERROR);
             }
         }
+    } else if from_stdin {
+        scanner.scan_reader(std::io::stdin().lock(), Path::new(STDIN_LABEL))
     } else {
         scanner.scan_directory(&scan_path)
     };

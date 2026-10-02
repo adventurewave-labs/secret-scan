@@ -430,7 +430,28 @@ impl Scanner {
         patterns: &PatternSet,
         context_filter: &ContextFilter,
     ) -> Result<Vec<Finding>, ScannerError> {
-        let mut reader = BufReader::with_capacity(64 * 1024, File::open(file_path)?);
+        let reader = BufReader::with_capacity(64 * 1024, File::open(file_path)?);
+        Self::scan_lines(reader, file_path, patterns, context_filter)
+    }
+
+    /// Scan text from any reader (for example standard input). Findings are
+    /// reported against `label` and are already post-processed.
+    pub fn scan_reader<R: BufRead>(
+        &self,
+        reader: R,
+        label: &Path,
+    ) -> Result<Vec<Finding>, ScannerError> {
+        let mut findings = Self::scan_lines(reader, label, &self.matcher, &self.context_filter)?;
+        Self::postprocess(&mut findings);
+        Ok(findings)
+    }
+
+    fn scan_lines<R: BufRead>(
+        mut reader: R,
+        file_path: &Path,
+        patterns: &PatternSet,
+        context_filter: &ContextFilter,
+    ) -> Result<Vec<Finding>, ScannerError> {
         let mut findings = Vec::new();
         let mut raw = Vec::new();
         let mut line_number = 0;

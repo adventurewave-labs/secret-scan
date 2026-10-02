@@ -74,6 +74,12 @@ Mask secret values in the report:
 secretscan --redact
 ```
 
+Scan piped input (findings are reported against `<stdin>`):
+```bash
+kubectl get secret app -o yaml | secretscan -
+git diff main...HEAD | secretscan --redact -
+```
+
 Save results to a file:
 ```bash
 secretscan --output results.txt
@@ -85,7 +91,7 @@ secretscan --output results.txt
 secretscan [OPTIONS] [PATH]
 
 Arguments:
-  [PATH]  Path to scan for secrets [default: .]
+  [PATH]  Path to scan for secrets, or - to read from standard input [default: .]
 
 Options:
   -f, --format <FORMAT>  Output format [default: text] [possible values: json, sarif, text]
