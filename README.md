@@ -92,6 +92,7 @@ Options:
   -o, --output <FILE>    Output file (default: stdout)
   -q, --quiet            Suppress progress bar
       --skip-tests       Skip test files and test-related patterns to reduce false positives
+      --min-severity <LEVEL>  Report only findings at or above this severity [default: low] [possible values: low, medium, high, critical]
       --redact           Mask secret values in the output (safe for CI logs and shared reports)
   -h, --help             Print help
   -V, --version          Print version
@@ -192,6 +193,22 @@ Add `secretscan:allow` (or the gitleaks-compatible `gitleaks:allow`) to the line
 ```python
 EXAMPLE_KEY = "AKIAIOSFODNN7EXAMPLE"  # secretscan:allow
 ```
+
+### Severity
+
+Every rule has a severity, shown in text output and included in JSON
+(`severity`) and SARIF (`level` and `security-severity`):
+
+| Severity | Meaning |
+|---|---|
+| `critical` | Key material that grants broad access on its own: private keys, AWS secret keys |
+| `high` | A credential in a provider's exact format, or a database URL with an embedded password |
+| `medium` | A contextual or generic match: password assignments, generic secrets, JWTs |
+| `low` | Identifiers and heuristics: client IDs, tenant IDs, strings that look encoded |
+
+`--min-severity high` reports only high and critical findings; the exit code
+follows what is reported, so this is the way to gate CI on real credentials
+while still being able to review the rest.
 
 ### Stable output
 

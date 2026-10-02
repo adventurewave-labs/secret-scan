@@ -58,14 +58,3 @@ fn the_table_still_holds_every_shipped_rule() {
         assert!(rules().iter().any(|r| r.name == name), "missing {name}");
     }
 }
-
-#[test]
-fn keywords_never_contradict_their_regex() {
-    // A keyword list is a promise that the regex cannot match a line lacking
-    // all of them. Check the weaker, mechanical half: no keyword is empty.
-    for rule in rules() {
-        for keyword in rule.keywords {
-            assert!(!keyword.is_empty(), "empty keyword in {}", rule.name);
-        }
-    }
-}

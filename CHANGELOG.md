@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Severity (`low`, `medium`, `high`, `critical`) on every rule, shown in text output, JSON and SARIF (`level` and `security-severity`)
+- `--min-severity <level>` to report, and fail on, only findings at or above a severity
+- JSON output now includes `rule_id`, `severity` and `fingerprint` for each finding
 - SARIF 2.1.0 output (`--format sarif`) for GitHub code scanning and other CI dashboards; results carry a stable fingerprint and never include secret text
 - `--redact` flag to mask secret values in text and JSON output
 - Inline suppression with `secretscan:allow` / `gitleaks:allow`
@@ -23,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Four regexes used for obfuscation analysis were recompiled for every scanned line; they are now compiled once
 
 ### Fixed
+- The per-rule summary in text output was listed in a different order on every run
 - A file containing any invalid UTF-8 byte was skipped entirely; it is now scanned, with invalid bytes replaced
 - A single private key produced up to three findings (specific, generic and multi-line rules); it is now reported once under its most specific rule
 - Unlabelled PKCS#8 keys (`BEGIN PRIVATE KEY`) were reported as "RSA Private Key"; they are now "Generic Private Key"

@@ -1,9 +1,43 @@
+use crate::patterns::{severity_for, Severity};
 use crate::Finding;
 use serde_json;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
+/// Render findings as a JSON array.
+///
+/// Each element has the finding's own fields plus `rule_id`, `severity` and
+/// `fingerprint`.
 pub fn format_as_json(findings: &[Finding]) -> Result<String, serde_json::Error> {
-    serde_json::to_string_pretty(findings)
+    let fingerprints: Vec<String> = findings.iter().map(fingerprint).collect();
+    format_as_json_with_fingerprints(findings, &fingerprints)
+}
+
+/// Like [`format_as_json`], with fingerprints supplied by the caller.
+///
+/// Used when the findings have been redacted: a fingerprint has to be taken
+/// from the real secret, before redaction.
+pub fn format_as_json_with_fingerprints(
+    findings: &[Finding],
+    fingerprints: &[String],
+) -> Result<String, serde_json::Error> {
+    let items: Vec<serde_json::Value> = findings
+        .iter()
+        .zip(fingerprints.iter())
+        .map(|(finding, fingerprint)| {
+            serde_json::json!({
+                "file_path": finding.file_path,
+                "line_number": finding.line_number,
+                "line_content": finding.line_content,
+                "pattern_name": finding.pattern_name,
+                "rule_id": rule_id(&finding.pattern_name),
+                "severity": severity_for(&finding.pattern_name).as_str(),
+                "matched_text": finding.matched_text,
+                "entropy": finding.entropy,
+                "fingerprint": fingerprint,
+            })
+        })
+        .collect();
+    serde_json::to_string_pretty(&items)
 }
 
 pub fn format_as_text(findings: &[Finding]) -> String {
@@ -15,11 +49,12 @@ pub fn format_as_text(findings: &[Finding]) -> String {
 
     for finding in findings {
         output.push_str(&format!(
-            "File: {}\nline {}: {}\nPattern: {}\nMatch: {}\nEntropy: {:.1}\n\n",
+            "File: {}\nline {}: {}\nPattern: {}\nSeverity: {}\nMatch: {}\nEntropy: {:.1}\n\n",
             finding.file_path.display(),
             finding.line_number,
             finding.line_content.trim(),
             finding.pattern_name,
+            severity_for(&finding.pattern_name),
             finding.matched_text,
             finding.entropy.unwrap_or(0.0)
         ));
@@ -33,7 +68,8 @@ pub fn generate_summary(findings: &[Finding]) -> String {
         return "No secrets found.".to_string();
     }
 
-    let mut pattern_counts = HashMap::new();
+    // BTreeMap: the summary lists rules in the same order on every run.
+    let mut pattern_counts = BTreeMap::new();
     for finding in findings {
         *pattern_counts.entry(&finding.pattern_name).or_insert(0) += 1;
     }
@@ -122,8 +158,11 @@ pub fn format_as_sarif(findings: &[Finding], tool_version: &str) -> Result<Strin
                 "id": rule_id(name),
                 "name": name,
                 "shortDescription": { "text": format!("{} detected", name) },
-                "defaultConfiguration": { "level": "error" },
-                "properties": { "tags": ["security", "secret"] }
+                "defaultConfiguration": { "level": severity_for(name).sarif_level() },
+                "properties": {
+                    "tags": ["security", "secret"],
+                    "security-severity": severity_for(name).security_severity()
+                }
             })
         })
         .collect();
@@ -138,7 +177,8 @@ pub fn format_as_sarif(findings: &[Finding], tool_version: &str) -> Result<Strin
                 .replace('\\', "/");
             serde_json::json!({
                 "ruleId": rule_id(&f.pattern_name),
-                "level": "error",
+                "level": severity_for(&f.pattern_name).sarif_level(),
+                "properties": { "severity": severity_for(&f.pattern_name).as_str() },
                 "message": { "text": format!("{} detected", f.pattern_name) },
                 "locations": [{
                     "physicalLocation": {
@@ -166,4 +206,9 @@ pub fn format_as_sarif(findings: &[Finding], tool_version: &str) -> Result<Strin
             "results": results
         }]
     }))
+}
+
+/// Keep only findings at or above `minimum`.
+pub fn filter_by_severity(findings: &mut Vec<Finding>, minimum: Severity) {
+    findings.retain(|finding| severity_for(&finding.pattern_name) >= minimum);
 }

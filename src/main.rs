@@ -1,6 +1,7 @@
 use clap::{Arg, ArgAction, Command};
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
+use secretscan::patterns::Severity;
 use secretscan::{output::*, ContextFilter, Scanner};
 use std::fs;
 use std::path::PathBuf;
@@ -66,6 +67,14 @@ fn main() {
                 .action(ArgAction::SetTrue),
         )
         .arg(
+            Arg::new("min-severity")
+                .long("min-severity")
+                .help("Report only findings at or above this severity")
+                .value_name("LEVEL")
+                .value_parser(["low", "medium", "high", "critical"])
+                .default_value("low"),
+        )
+        .arg(
             Arg::new("redact")
                 .long("redact")
                 .help("Mask secret values in the output (safe for CI logs and shared reports)")
@@ -79,6 +88,10 @@ fn main() {
     let quiet = matches.get_flag("quiet");
     let skip_tests = matches.get_flag("skip-tests");
     let redact = matches.get_flag("redact");
+    let min_severity = matches
+        .get_one::<String>("min-severity")
+        .and_then(|level| Severity::parse(level))
+        .unwrap_or(Severity::Low);
 
     // Validate scan path
     if !scan_path.exists() {
@@ -123,16 +136,7 @@ fn main() {
 
     // Perform scan
     let mut findings = match scanner.scan_directory(&scan_path) {
-        Ok(findings) => {
-            if let Some(pb) = &progress {
-                pb.finish_with_message(format!(
-                    "{} Found {} potential secrets",
-                    "✓".green().bold(),
-                    findings.len()
-                ));
-            }
-            findings
-        }
+        Ok(findings) => findings,
         Err(e) => {
             if let Some(pb) = &progress {
                 pb.finish_with_message(format!("{} Scan failed", "✗".red().bold()));
@@ -141,6 +145,20 @@ fn main() {
             process::exit(1);
         }
     };
+
+    // Applied before anything is reported, so the summary line, the output
+    // and the exit code all describe the same set of findings.
+    filter_by_severity(&mut findings, min_severity);
+    if let Some(pb) = &progress {
+        pb.finish_with_message(format!(
+            "{} Found {} potential secrets",
+            "✓".green().bold(),
+            findings.len()
+        ));
+    }
+
+    // Fingerprints identify the real secret, so take them before redaction.
+    let fingerprints: Vec<String> = findings.iter().map(fingerprint).collect();
 
     // SARIF is rendered before redaction: its fingerprints are derived from
     // the real secret, and SARIF output never contains secret text anyway.
@@ -162,7 +180,7 @@ fn main() {
     // Format output
     let output_content = match format {
         OutputFormat::Sarif => sarif.unwrap_or_default(),
-        OutputFormat::Json => match format_as_json(&findings) {
+        OutputFormat::Json => match format_as_json_with_fingerprints(&findings, &fingerprints) {
             Ok(json) => json,
             Err(e) => {
                 eprintln!("{} Failed to format JSON: {}", "Error:".red().bold(), e);

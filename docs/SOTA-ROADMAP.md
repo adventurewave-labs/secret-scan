@@ -38,7 +38,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
       findings (RSA / Generic / Multi-line). Report it once.
 - [x] **5. Remove debug output.** Delete the `[DEBUG]` `eprintln!` calls and the
       duplicated static/instance scan paths in `src/scanner.rs`.
-- [ ] **6. Severity and confidence.** Add both to rules, JSON and SARIF
+- [x] **6. Severity and confidence.** Add both to rules, JSON and SARIF
       (`level`, `security-severity`); add `--min-severity`.
 - [ ] **7. Baseline.** `--baseline <file>` suppresses known fingerprints;
       `--write-baseline <file>` records them. Exit code reflects new findings only.
@@ -102,3 +102,9 @@ to land as a single tested commit on the `claude/sota-loop` branch.
   chunked path skipped the entropy filter by inspection, but the large-file
   test also passes on the old code, so no behaviour change is claimed there.
   Findings on this repo identical before and after. CI test subset 84 → 88.
+- Loop 6: item 6, severity only. Four levels on every rule, in text, JSON
+  (with `rule_id` and `fingerprint`) and SARIF (`level`, `security-severity`);
+  `--min-severity` filters output and exit code together. A separate
+  confidence score was not added: nothing in the scanner produces one yet
+  (item 15 would). The unused `keywords` field on `Rule` is removed.
+  CI test subset 88 → 96.

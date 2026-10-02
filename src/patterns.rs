@@ -3,6 +3,71 @@ use regex::Regex;
 use std::collections::HashMap;
 use base64::{Engine as _, engine::general_purpose};
 
+/// How bad it is if a finding from a rule is real.
+///
+/// - `Critical`: key material that grants broad access on its own (private
+///   keys, AWS secret keys).
+/// - `High`: a credential in a provider's exact format, or a database URL
+///   with an embedded password.
+/// - `Medium`: a contextual or generic match (password assignments, generic
+///   secrets, JWTs, API keys that are often public by design).
+/// - `Low`: identifiers and heuristics (client IDs, tenant IDs, strings that
+///   merely look encoded).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Severity {
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+impl Severity {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Severity::Low => "low",
+            Severity::Medium => "medium",
+            Severity::High => "high",
+            Severity::Critical => "critical",
+        }
+    }
+
+    /// Parse a severity name, case-insensitively.
+    pub fn parse(text: &str) -> Option<Self> {
+        match text.to_ascii_lowercase().as_str() {
+            "low" => Some(Severity::Low),
+            "medium" => Some(Severity::Medium),
+            "high" => Some(Severity::High),
+            "critical" => Some(Severity::Critical),
+            _ => None,
+        }
+    }
+
+    /// SARIF result level.
+    pub fn sarif_level(self) -> &'static str {
+        match self {
+            Severity::Low => "note",
+            Severity::Medium => "warning",
+            Severity::High | Severity::Critical => "error",
+        }
+    }
+
+    /// CVSS-style score used by GitHub code scanning (`security-severity`).
+    pub fn security_severity(self) -> &'static str {
+        match self {
+            Severity::Low => "3.0",
+            Severity::Medium => "5.5",
+            Severity::High => "8.0",
+            Severity::Critical => "9.5",
+        }
+    }
+}
+
+impl std::fmt::Display for Severity {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// A detection rule: one named regular expression.
 pub struct Rule {
     /// Stable machine identifier, e.g. `aws-access-key-id`.
@@ -10,124 +75,146 @@ pub struct Rule {
     /// Human-readable name, as reported in findings.
     pub name: &'static str,
     pub regex: Regex,
-    /// Literal substrings, at least one of which a line must contain for the
-    /// regex to be able to match. Empty means "always run the regex".
-    pub keywords: &'static [&'static str],
+    pub severity: Severity,
 }
 
-/// The single source of truth for built-in rules: (name, regex, keywords).
+/// Severity for a finding's pattern name.
+///
+/// Findings recovered from an encoding ("Base64 Encoded GitHub Token",
+/// "Hex Encoded …", "URL Decoded …", "Character Array Encoded …") take the
+/// severity of the underlying rule. Names that match no built-in rule (custom
+/// patterns) are `Medium`.
+pub fn severity_for(pattern_name: &str) -> Severity {
+    const PREFIXES: [&str; 4] = [
+        "Base64 Encoded ",
+        "Hex Encoded ",
+        "URL Decoded ",
+        "Character Array Encoded ",
+    ];
+    let base = PREFIXES
+        .iter()
+        .find_map(|prefix| pattern_name.strip_prefix(prefix))
+        .unwrap_or(pattern_name);
+    RULES
+        .iter()
+        .find(|rule| rule.name == base)
+        .map(|rule| rule.severity)
+        .unwrap_or(Severity::Medium)
+}
+
+/// The single source of truth for built-in rules: (name, regex, severity).
 ///
 /// Everything else — the name → regex maps, rule ids, SARIF rule metadata —
 /// is derived from this table, so adding a rule is a one-line change.
-const RULE_DEFS: &[(&str, &str, &[&str])] = &[
+const RULE_DEFS: &[(&str, &str, Severity)] = &[
     // AWS Patterns
     // Contextual assignment form: aws-named variable = key (quoted or bare).
-    ("AWS Access Key", r#"(?i)(aws[_\s\-]?access[_\s\-]?key[_\s\-]?(id)?)["']?\s*[:=]\s*[^"'\n]*?["']?(AKIA[0-9A-Z]{16})["']?"#, &[]),
+    ("AWS Access Key", r#"(?i)(aws[_\s\-]?access[_\s\-]?key[_\s\-]?(id)?)["']?\s*[:=]\s*[^"'\n]*?["']?(AKIA[0-9A-Z]{16})["']?"#, Severity::High),
     // Bare key format: AKIA + exactly 16 uppercase alphanumerics. AWS key IDs are
     // case-sensitive; the old (?i) version reported strings that cannot be live keys.
-    ("AWS Access Key ID", r"AKIA[0-9A-Z]{16}\b", &[]),
+    ("AWS Access Key ID", r"AKIA[0-9A-Z]{16}\b", Severity::High),
     // Secret keys: aws-prefixed names or the canonical secret_access_key, quoted or bare value.
-    ("AWS Secret Key", r#"(?i)(aws[_\-]?secret[a-z0-9_\-]*|secret[_\-]?access[_\-]?key)["']?\s*[:=]\s*(?:[^"'\n]*["']([A-Za-z0-9/+=]{40})["']|([A-Za-z0-9/+=]{40}))"#, &[]),
+    ("AWS Secret Key", r#"(?i)(aws[_\-]?secret[a-z0-9_\-]*|secret[_\-]?access[_\-]?key)["']?\s*[:=]\s*(?:[^"'\n]*["']([A-Za-z0-9/+=]{40})["']|([A-Za-z0-9/+=]{40}))"#, Severity::Critical),
 
     // GitHub Patterns
-    ("GitHub Token", r"\bghp_[0-9A-Za-z]{36,}", &[]),
+    ("GitHub Token", r"\bghp_[0-9A-Za-z]{36,}", Severity::High),
     // OAuth/user/server/refresh tokens. (Previously a bare 40-hex regex that matched
     // every git SHA in sight.)
-    ("GitHub OAuth", r"\bgh[ousr]_[0-9A-Za-z]{36,}", &[]),
+    ("GitHub OAuth", r"\bgh[ousr]_[0-9A-Za-z]{36,}", Severity::High),
 
     // Google Patterns
-    ("Google API Key", r"\bAIza[0-9A-Za-z\-_]{33,}", &[]),
-    ("Google OAuth", r"[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com", &[]),
+    ("Google API Key", r"\bAIza[0-9A-Za-z\-_]{33,}", Severity::Medium),
+    ("Google OAuth", r"[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com", Severity::Low),
 
     // JWT
-    ("JWT Token", r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}", &[]),
+    ("JWT Token", r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}", Severity::Medium),
 
     // Private Keys
-    ("RSA Private Key", r"-----BEGIN\s+RSA\s+PRIVATE\s+KEY-----", &[]),
-    ("EC Private Key", r"-----BEGIN\s+EC\s+PRIVATE\s+KEY-----", &[]),
-    ("PGP Private Key", r"-----BEGIN\s+PGP\s+PRIVATE\s+KEY\s+BLOCK-----", &[]),
-    ("SSH Private Key", r"-----BEGIN\s+OPENSSH\s+PRIVATE\s+KEY-----", &[]),
+    ("RSA Private Key", r"-----BEGIN\s+RSA\s+PRIVATE\s+KEY-----", Severity::Critical),
+    ("EC Private Key", r"-----BEGIN\s+EC\s+PRIVATE\s+KEY-----", Severity::Critical),
+    ("PGP Private Key", r"-----BEGIN\s+PGP\s+PRIVATE\s+KEY\s+BLOCK-----", Severity::Critical),
+    ("SSH Private Key", r"-----BEGIN\s+OPENSSH\s+PRIVATE\s+KEY-----", Severity::Critical),
     // Any PEM private-key header, including unlabelled PKCS#8
     // ("BEGIN PRIVATE KEY"), DSA and ENCRYPTED. Shadowed by the specific
     // rules above when one of them matches the same line.
-    ("Generic Private Key", r"-----BEGIN\s+(?:[A-Z]+\s+)*PRIVATE\s+KEY(?:\s+BLOCK)?-----", &[]),
-    ("Multi-line Private Key", r"(?s)-----BEGIN[^-]+PRIVATE[^-]+-----.*?-----END[^-]+PRIVATE[^-]+-----", &[]),
+    ("Generic Private Key", r"-----BEGIN\s+(?:[A-Z]+\s+)*PRIVATE\s+KEY(?:\s+BLOCK)?-----", Severity::Critical),
+    ("Multi-line Private Key", r"(?s)-----BEGIN[^-]+PRIVATE[^-]+-----.*?-----END[^-]+PRIVATE[^-]+-----", Severity::Critical),
 
     // Database URLs
-    ("PostgreSQL URL", r"postgres(ql)?://[a-z0-9]+:[^@\s]+@[^\s]+", &[]),
-    ("MySQL URL", r"mysql://[a-z0-9]+:[^@\s]+@[^\s]+", &[]),
-    ("MongoDB URL", r"mongodb(\+srv)?://[a-z0-9]+:[^@\s]+@[^\s]+", &[]),
-    ("Redis URL", r"redis://(?:[a-z0-9]+:)?[^@\s]+@[^\s]+", &[]),
+    ("PostgreSQL URL", r"postgres(ql)?://[a-z0-9]+:[^@\s]+@[^\s]+", Severity::High),
+    ("MySQL URL", r"mysql://[a-z0-9]+:[^@\s]+@[^\s]+", Severity::High),
+    ("MongoDB URL", r"mongodb(\+srv)?://[a-z0-9]+:[^@\s]+@[^\s]+", Severity::High),
+    ("Redis URL", r"redis://(?:[a-z0-9]+:)?[^@\s]+@[^\s]+", Severity::High),
 
     // API Keys
-    ("OpenAI API Key", r"sk-[0-9A-Za-z]{32,48}", &[]),
-    ("Stripe API Key", r"(sk|pk)_(test|live)_[0-9A-Za-z]{24,}", &[]),
-    ("SendGrid API Key", r"SG\.[0-9A-Za-z\-_]{22,}\.[0-9A-Za-z\-_]{22,}", &[]),
-    ("Slack Token", r"xox[baprs]-[0-9A-Za-z]{10,48}", &[]),
-    ("Twilio API Key", r"SK[0-9a-fA-F]{32}", &[]),
-    ("Mailgun API Key", r"key-[0-9a-zA-Z]{32}", &[]),
-    ("Firebase API Key", r"AIza[0-9A-Za-z\-_]{35}", &[]),
-    ("DigitalOcean Token", r"dop_v1_[a-f0-9]{64}", &[]),
-    ("Heroku API Key", r#"(?i)\bheroku[a-z0-9_.\-]{0,24}["']?\s*[:=]\s*["']?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"#, &[]),
-    ("Discord Token", r"[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{27}", &[]),
-    ("Shopify Token", r"shppa_[a-fA-F0-9]{32}", &[]),
-    ("GitLab Token", r"glpat-[0-9a-zA-Z\-_]{20}", &[]),
+    ("OpenAI API Key", r"sk-[0-9A-Za-z]{32,48}", Severity::High),
+    ("Stripe API Key", r"(sk|pk)_(test|live)_[0-9A-Za-z]{24,}", Severity::High),
+    ("SendGrid API Key", r"SG\.[0-9A-Za-z\-_]{22,}\.[0-9A-Za-z\-_]{22,}", Severity::High),
+    ("Slack Token", r"xox[baprs]-[0-9A-Za-z]{10,48}", Severity::High),
+    ("Twilio API Key", r"SK[0-9a-fA-F]{32}", Severity::High),
+    ("Mailgun API Key", r"key-[0-9a-zA-Z]{32}", Severity::High),
+    ("Firebase API Key", r"AIza[0-9A-Za-z\-_]{35}", Severity::Medium),
+    ("DigitalOcean Token", r"dop_v1_[a-f0-9]{64}", Severity::High),
+    ("Heroku API Key", r#"(?i)\bheroku[a-z0-9_.\-]{0,24}["']?\s*[:=]\s*["']?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"#, Severity::High),
+    ("Discord Token", r"[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{27}", Severity::High),
+    ("Shopify Token", r"shppa_[a-fA-F0-9]{32}", Severity::High),
+    ("GitLab Token", r"glpat-[0-9a-zA-Z\-_]{20}", Severity::High),
 
     // OAuth Patterns
-    ("Generic OAuth Secret", r#"(?i)(oauth|client)[_\s\-]?secret["']?\s*[:=]\s*["']?([a-zA-Z0-9\-._~+/]{32,})["']?"#, &[]),
-    ("Generic Client ID", r#"(?i)(client|app)[_\s\-]?id["']?\s*[:=]\s*["']?([a-zA-Z0-9\-._~+/]{20,})["']?"#, &[]),
+    ("Generic OAuth Secret", r#"(?i)(oauth|client)[_\s\-]?secret["']?\s*[:=]\s*["']?([a-zA-Z0-9\-._~+/]{32,})["']?"#, Severity::Medium),
+    ("Generic Client ID", r#"(?i)(client|app)[_\s\-]?id["']?\s*[:=]\s*["']?([a-zA-Z0-9\-._~+/]{20,})["']?"#, Severity::Low),
 
     // Azure Patterns
     // A bare UUID is not a credential. These two rules used to match every
     // UUID in a codebase; they now require the provider's name in the
     // variable being assigned.
-    ("Azure Tenant ID", r#"(?i)\b(?:azure|aad|arm)[a-z0-9_.\-]{0,24}tenant[a-z0-9_.\-]{0,8}["']?\s*[:=]\s*["']?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"#, &[]),
-    ("Azure Client Secret", r#"(?i)azure[_\s\-]?(client[_\s\-]?)?secret["']?\s*[:=]\s*["']?([a-zA-Z0-9~._-]{34,})["']?"#, &[]),
+    ("Azure Tenant ID", r#"(?i)\b(?:azure|aad|arm)[a-z0-9_.\-]{0,24}tenant[a-z0-9_.\-]{0,8}["']?\s*[:=]\s*["']?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"#, Severity::Low),
+    ("Azure Client Secret", r#"(?i)azure[_\s\-]?(client[_\s\-]?)?secret["']?\s*[:=]\s*["']?([a-zA-Z0-9~._-]{34,})["']?"#, Severity::High),
 
     // PayPal Patterns
-    ("PayPal Client ID", r#"(?i)paypal[_\s\-]?client[_\s\-]?id["']?\s*[:=]\s*["']?([A-Za-z0-9-_]{60,})["']?"#, &[]),
-    ("PayPal Secret", r#"(?i)paypal[_\s\-]?secret["']?\s*[:=]\s*["']?([A-Za-z0-9-_]{60,})["']?"#, &[]),
+    ("PayPal Client ID", r#"(?i)paypal[_\s\-]?client[_\s\-]?id["']?\s*[:=]\s*["']?([A-Za-z0-9-_]{60,})["']?"#, Severity::Low),
+    ("PayPal Secret", r#"(?i)paypal[_\s\-]?secret["']?\s*[:=]\s*["']?([A-Za-z0-9-_]{60,})["']?"#, Severity::High),
 
     // Password Patterns
-    ("Password in JSON", r#"["']password["']\s*:\s*["']([^"']{8,})["']"#, &[]),
-    ("Password in YAML", r"(?m)^\s*password\s*:\s*(.+)$", &[]),
-    ("Password Environment Variable", r#"(?i)(password|passwd|pwd)["']?\s*[:=]\s*["']?([^\s"']{8,})["']?"#, &[]),
-    ("Password in URL", r"://[^:]+:([^@]{8,})@", &[]),
-    ("Generic Secret", r#"(?i)(api[_\s\-]?key|secret[_\s\-]?key|auth[_\s\-]?token|access[_\s\-]?token)["']?\s*[:=]\s*["']?([a-zA-Z0-9\-._~+/]{20,})["']?"#, &[]),
+    ("Password in JSON", r#"["']password["']\s*:\s*["']([^"']{8,})["']"#, Severity::Medium),
+    ("Password in YAML", r"(?m)^\s*password\s*:\s*(.+)$", Severity::Medium),
+    ("Password Environment Variable", r#"(?i)(password|passwd|pwd)["']?\s*[:=]\s*["']?([^\s"']{8,})["']?"#, Severity::Medium),
+    ("Password in URL", r"://[^:]+:([^@]{8,})@", Severity::Medium),
+    ("Generic Secret", r#"(?i)(api[_\s\-]?key|secret[_\s\-]?key|auth[_\s\-]?token|access[_\s\-]?token)["']?\s*[:=]\s*["']?([a-zA-Z0-9\-._~+/]{20,})["']?"#, Severity::Medium),
 
     // Connection Strings
-    ("Connection String", r#"(?i)(connection[_\s\-]?string|conn[_\s\-]?str)["']?\s*[:=]\s*["']?([^"'\s]+)["']?"#, &[]),
-    ("Database URL", r#"(?i)database[_\s\-]?url["']?\s*[:=]\s*["']?([^"'\s]+)["']?"#, &[]),
+    ("Connection String", r#"(?i)(connection[_\s\-]?string|conn[_\s\-]?str)["']?\s*[:=]\s*["']?([^"'\s]+)["']?"#, Severity::Medium),
+    ("Database URL", r#"(?i)database[_\s\-]?url["']?\s*[:=]\s*["']?([^"'\s]+)["']?"#, Severity::Medium),
 
     // Obfuscated/Encoded Patterns
-    ("Base64 Variable Pattern", r#"(?i)(api[_\s\-]?key|secret|token|password|pass|auth|credential|aws[_\s\-]?access|aws[_\s\-]?secret|github[_\s\-]?token|stripe[_\s\-]?key)[_\s\-]*(b64|base64|encoded|enc)["']?\s*[:=]\s*["']?([A-Za-z0-9+/]{16,}={0,2})["']?"#, &[]),
-    ("Hex Variable Pattern", r#"(?i)(api[_\s\-]?key|secret|token|password|pass|auth|credential|aws[_\s\-]?access|aws[_\s\-]?secret|github[_\s\-]?token|stripe[_\s\-]?key)[_\s\-]*(hex|encoded|enc)["']?\s*[:=]\s*["']?([a-fA-F0-9]{32,})["']?"#, &[]),
-    ("Suspicious Base64", r#"["']([A-Za-z0-9+/]{40,}={0,2})["']"#, &[]),
-    ("Suspicious Hex", r#"["']([a-fA-F0-9]{40,})["']"#, &[]),
-    ("URL Encoded Pattern", r#"(?i)(database[_\s\-]?url|db[_\s\-]?url|connection[_\s\-]?string|conn[_\s\-]?str)["']?\s*[:=]\s*["']?([^"'\s]*%[0-9A-Fa-f]{2}[^"'\s]*)["']?"#, &[]),
-    ("Character Array Pattern", r"\[(?:\s*\d+\s*,?\s*){16,}\]", &[]),
-    ("Split Secret Pattern", r#"(?i)(api[_\s\-]?key|secret|token|password|pass|auth|credential)["']?\s*[:=]\s*["']?([A-Za-z0-9+/]{8,})["']?\s*\+\s*["']?([A-Za-z0-9+/]{8,})["']?"#, &[]),
+    ("Base64 Variable Pattern", r#"(?i)(api[_\s\-]?key|secret|token|password|pass|auth|credential|aws[_\s\-]?access|aws[_\s\-]?secret|github[_\s\-]?token|stripe[_\s\-]?key)[_\s\-]*(b64|base64|encoded|enc)["']?\s*[:=]\s*["']?([A-Za-z0-9+/]{16,}={0,2})["']?"#, Severity::Medium),
+    ("Hex Variable Pattern", r#"(?i)(api[_\s\-]?key|secret|token|password|pass|auth|credential|aws[_\s\-]?access|aws[_\s\-]?secret|github[_\s\-]?token|stripe[_\s\-]?key)[_\s\-]*(hex|encoded|enc)["']?\s*[:=]\s*["']?([a-fA-F0-9]{32,})["']?"#, Severity::Medium),
+    ("Suspicious Base64", r#"["']([A-Za-z0-9+/]{40,}={0,2})["']"#, Severity::Low),
+    ("Suspicious Hex", r#"["']([a-fA-F0-9]{40,})["']"#, Severity::Low),
+    ("URL Encoded Pattern", r#"(?i)(database[_\s\-]?url|db[_\s\-]?url|connection[_\s\-]?string|conn[_\s\-]?str)["']?\s*[:=]\s*["']?([^"'\s]*%[0-9A-Fa-f]{2}[^"'\s]*)["']?"#, Severity::Medium),
+    ("Character Array Pattern", r"\[(?:\s*\d+\s*,?\s*){16,}\]", Severity::Low),
+    ("Split Secret Pattern", r#"(?i)(api[_\s\-]?key|secret|token|password|pass|auth|credential)["']?\s*[:=]\s*["']?([A-Za-z0-9+/]{8,})["']?\s*\+\s*["']?([A-Za-z0-9+/]{8,})["']?"#, Severity::Medium),
 
     // Modern provider tokens
-    ("GitHub Fine-Grained PAT", r"\bgithub_pat_[0-9A-Za-z_]{82}", &[]),
-    ("Anthropic API Key", r"\bsk-ant-(?:api03|admin01)-[A-Za-z0-9_\-]{80,}", &[]),
-    ("OpenAI Project Key", r"\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{40,}", &[]),
-    ("Hugging Face Token", r"\bhf_[A-Za-z0-9]{34,}", &[]),
-    ("npm Access Token", r"\bnpm_[A-Za-z0-9]{36}\b", &[]),
-    ("PyPI Upload Token", r"\bpypi-AgEIcHlwaS5vcmc[A-Za-z0-9_\-]{50,}", &[]),
-    ("Slack App Token", r"\bxapp-[0-9]-[A-Z0-9]+-[0-9]+-[a-f0-9]{32,}", &[]),
-    ("Stripe Restricted Key", r"\b(?:rk_(?:test|live)_[0-9A-Za-z]{24,}|whsec_[0-9A-Za-z]{32,})", &[]),
+    ("GitHub Fine-Grained PAT", r"\bgithub_pat_[0-9A-Za-z_]{82}", Severity::High),
+    ("Anthropic API Key", r"\bsk-ant-(?:api03|admin01)-[A-Za-z0-9_\-]{80,}", Severity::High),
+    ("OpenAI Project Key", r"\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{40,}", Severity::High),
+    ("Hugging Face Token", r"\bhf_[A-Za-z0-9]{34,}", Severity::High),
+    ("npm Access Token", r"\bnpm_[A-Za-z0-9]{36}\b", Severity::High),
+    ("PyPI Upload Token", r"\bpypi-AgEIcHlwaS5vcmc[A-Za-z0-9_\-]{50,}", Severity::High),
+    ("Slack App Token", r"\bxapp-[0-9]-[A-Z0-9]+-[0-9]+-[a-f0-9]{32,}", Severity::High),
+    ("Stripe Restricted Key", r"\b(?:rk_(?:test|live)_[0-9A-Za-z]{24,}|whsec_[0-9A-Za-z]{32,})", Severity::High),
 ];
 
 lazy_static! {
     static ref RULES: Vec<Rule> = RULE_DEFS
         .iter()
-        .map(|&(name, pattern, keywords)| Rule {
+        .map(|&(name, pattern, severity)| Rule {
             id: crate::output::rule_id(name),
             name,
             regex: Regex::new(pattern)
                 .unwrap_or_else(|e| panic!("invalid regex for rule {name}: {e}")),
-            keywords,
+            severity,
         })
         .collect();
     static ref ALL_PATTERNS: HashMap<String, &'static Regex> = RULES
