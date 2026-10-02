@@ -99,7 +99,62 @@ pub fn scan_history(
 /// [`scan_history`]. Separate from the git invocation so it can be tested
 /// without a repository.
 pub fn scan_log(scanner: &Scanner, repo: &Path, log: &str) -> Vec<HistoryFinding> {
-    let mut raw: Vec<(Finding, CommitInfo)> = Vec::new();
+    let mut raw: Vec<(Finding, CommitInfo)> = scan_diff(scanner, repo, log)
+        .into_iter()
+        .filter_map(|(finding, commit)| Some((finding, commit?)))
+        .collect();
+
+    // Oldest first, so the first time a fingerprint is seen is the commit
+    // that introduced the secret; later re-additions are the same finding.
+    let mut seen = HashSet::new();
+    raw.retain(|(finding, _)| seen.insert((fingerprint(finding), finding.pattern_name.clone())));
+
+    let mut findings: Vec<Finding> = raw.iter().map(|(finding, _)| finding.clone()).collect();
+    Scanner::postprocess(&mut findings);
+    findings
+        .into_iter()
+        .filter_map(|finding| {
+            raw.iter()
+                .find(|(candidate, _)| *candidate == finding)
+                .map(|(_, commit)| HistoryFinding { finding, commit: commit.clone() })
+        })
+        .collect()
+}
+
+/// Scan what is staged for the next commit (`git diff --cached`): the lines
+/// a commit would add. This is what a pre-commit hook should check, so that
+/// a secret is stopped before it enters history and unrelated, already
+/// committed findings do not block the commit.
+pub fn scan_staged(scanner: &Scanner, repo: &Path) -> Result<Vec<Finding>, GitError> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args([
+            "diff",
+            "--cached",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--unified=0",
+            "--",
+        ])
+        .stdin(Stdio::null())
+        .output()
+        .map_err(GitError::Spawn)?;
+    if !output.status.success() {
+        return Err(GitError::Failed(String::from_utf8_lossy(&output.stderr).into_owned()));
+    }
+    let diff = String::from_utf8_lossy(&output.stdout);
+    let mut findings: Vec<Finding> =
+        scan_diff(scanner, repo, &diff).into_iter().map(|(finding, _)| finding).collect();
+    Scanner::postprocess(&mut findings);
+    Ok(findings)
+}
+
+/// Scan the added lines of unified-diff text. Findings are raw (not
+/// post-processed) and carry the commit whose header preceded them, if any.
+fn scan_diff(scanner: &Scanner, repo: &Path, log: &str) -> Vec<(Finding, Option<CommitInfo>)> {
+    let mut raw: Vec<(Finding, Option<CommitInfo>)> = Vec::new();
     let mut commit: Option<CommitInfo> = None;
     let mut file: Option<PathBuf> = None;
     let mut new_line = 0usize;
@@ -113,9 +168,9 @@ pub fn scan_log(scanner: &Scanner, repo: &Path, log: &str) -> Vec<HistoryFinding
         if old_remaining > 0 || new_remaining > 0 {
             if let Some(added) = line.strip_prefix('+') {
                 if new_remaining > 0 {
-                    if let (Some(path), Some(info)) = (&file, &commit) {
+                    if let Some(path) = &file {
                         for finding in scanner.scan_text_line(added, new_line, path) {
-                            raw.push((finding, info.clone()));
+                            raw.push((finding, commit.clone()));
                         }
                     }
                     new_line += 1;
@@ -154,21 +209,7 @@ pub fn scan_log(scanner: &Scanner, repo: &Path, log: &str) -> Vec<HistoryFinding
         }
     }
 
-    // Oldest first, so the first time a fingerprint is seen is the commit
-    // that introduced the secret; later re-additions are the same finding.
-    let mut seen = HashSet::new();
-    raw.retain(|(finding, _)| seen.insert((fingerprint(finding), finding.pattern_name.clone())));
-
-    let mut findings: Vec<Finding> = raw.iter().map(|(finding, _)| finding.clone()).collect();
-    Scanner::postprocess(&mut findings);
-    findings
-        .into_iter()
-        .filter_map(|finding| {
-            raw.iter()
-                .find(|(candidate, _)| *candidate == finding)
-                .map(|(_, commit)| HistoryFinding { finding, commit: commit.clone() })
-        })
-        .collect()
+    raw
 }
 
 /// The path in a `+++ b/path` line; `None` for `/dev/null` (a deletion).

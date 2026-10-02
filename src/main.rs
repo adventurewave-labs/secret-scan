@@ -2,7 +2,7 @@ use clap::{Arg, ArgAction, Command};
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
 use secretscan::config::Config;
-use secretscan::git::{scan_history, CommitInfo, HistoryFinding};
+use secretscan::git::{scan_history, scan_staged, CommitInfo, HistoryFinding};
 use secretscan::patterns::{get_all_patterns_owned, register_custom_severity, Severity};
 use secretscan::{output::*, ContextFilter, Scanner};
 use std::fs;
@@ -87,6 +87,13 @@ fn main() {
                 .long("git")
                 .help("Scan the git history of PATH (every added line in every commit) instead of the working tree")
                 .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("staged")
+                .long("staged")
+                .help("Scan only what is staged for the next commit (for pre-commit hooks)")
+                .action(ArgAction::SetTrue)
+                .conflicts_with("git"),
         )
         .arg(
             Arg::new("since")
@@ -254,6 +261,17 @@ fn main() {
                 history = found;
                 Ok(history.iter().map(|h| h.finding.clone()).collect())
             }
+            Err(e) => {
+                if let Some(pb) = &progress {
+                    pb.finish_and_clear();
+                }
+                eprintln!("{} {}", "Error:".red().bold(), e);
+                process::exit(EXIT_ERROR);
+            }
+        }
+    } else if matches.get_flag("staged") {
+        match scan_staged(&scanner, &scan_path) {
+            Ok(found) => Ok(found),
             Err(e) => {
                 if let Some(pb) = &progress {
                     pb.finish_and_clear();

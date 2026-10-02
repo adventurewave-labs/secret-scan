@@ -51,7 +51,7 @@ to land as a single tested commit on the `claude/sota-loop` branch.
       can run in report-only mode in CI.
 - [x] **11. Git history scan.** `--git` walks commits via `git log -p` and
       reports commit, author and date; `--since <rev>` for incremental scans.
-- [ ] **12. Staged scan and pre-commit hook.** `--staged`, plus a
+- [x] **12. Staged scan and pre-commit hook.** `--staged`, plus a
       `.pre-commit-hooks.yaml` so the repo works with pre-commit.
 - [ ] **13. Stdin.** `secretscan -` reads from a pipe.
 - [ ] **14. More providers.** Azure storage keys, GCP service-account JSON,
@@ -131,3 +131,9 @@ to land as a single tested commit on the `claude/sota-loop` branch.
   from HEAD; the whole log is read into memory, so very large histories will
   need streaming. Sanity run on this repo (69 commits in the shallow clone):
   0.63 s, 423 findings across 16 commits. CI test subset 122 → 133.
+- Loop 12: item 12. `--staged` (`git diff --cached`, same diff parser as
+  `--git`) and `.pre-commit-hooks.yaml`. Tested by installing the hook's exact
+  entry as a real git pre-commit hook: a commit adding a secret is rejected
+  with redacted output, a clean one passes. Not tested: running through the
+  `pre-commit` framework itself (it is not installed here and would build the
+  crate from the network). CI test subset 133 → 141.

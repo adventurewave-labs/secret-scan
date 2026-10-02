@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `--staged` scans only what is staged for the next commit, and a `.pre-commit-hooks.yaml` makes the repository usable as a pre-commit hook
 - `--git` scans git history (every added line in every commit reachable from HEAD) and reports each secret at the commit that introduced it, with author and date; `--since <rev>` limits the scan to newer commits
 - `--exit-code <n>` and `--no-fail` to control the exit status when findings are reported
 - `.secretscan.toml` config file (`--config`, `--no-config`): allowlist by path, secret regex or fingerprint; disable rules by id; define custom rules with a severity

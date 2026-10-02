@@ -94,6 +94,7 @@ Options:
       --skip-tests       Skip test files and test-related patterns to reduce false positives
       --min-severity <LEVEL>  Report only findings at or above this severity [default: low] [possible values: low, medium, high, critical]
       --git                   Scan the git history of PATH (every added line in every commit) instead of the working tree
+      --staged                Scan only what is staged for the next commit (for pre-commit hooks)
       --since <REV>           With --git: scan only commits after this revision (REV..HEAD)
   -c, --config <FILE>         Config file (default: .secretscan.toml in the scanned directory, if present)
       --no-config             Ignore any .secretscan.toml
@@ -248,6 +249,29 @@ Each finding carries `commit`, `author` and `date` (in JSON, text and SARIF
 properties). Baselines, config, `--min-severity` and `--redact` work the same
 way as for a working-tree scan. Requires `git` on `PATH`. Only commits
 reachable from `HEAD` are scanned, not other branches or stashes.
+
+### Pre-commit hook
+
+`--staged` scans only the lines the next commit would add, so a secret is
+stopped before it enters history and findings already in the repository do
+not block unrelated commits.
+
+With [pre-commit](https://pre-commit.com), add to `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/adventurewave-labs/secret-scan
+    rev: <tag or commit>
+    hooks:
+      - id: secretscan
+```
+
+Or as a plain git hook, in `.git/hooks/pre-commit`:
+
+```sh
+#!/bin/sh
+exec secretscan --staged --redact --quiet
+```
 
 ### Adopting on an existing codebase
 
