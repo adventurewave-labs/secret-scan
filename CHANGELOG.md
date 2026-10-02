@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rule_id` and `fingerprint` helpers in the library API
 
 ### Changed
+- "JWT Token" findings are structurally validated offline: the header and payload must decode to JSON and the header must name an algorithm, so `eyJ…` lookalikes are no longer reported
 - **Breaking:** errors (missing path, failed scan, unwritable output) now exit 2 instead of 1, so they can be told apart from "secrets found"
 - The generic, name-based rules (passwords, generic secrets, connection strings) no longer report placeholder values such as `changeme`, `<your-key>`, `${VAR}` or `xxxx`. Format-exact rules are unaffected
 - Custom patterns passed to `Scanner::with_patterns` are no longer subject to the entropy filter; every match is reported

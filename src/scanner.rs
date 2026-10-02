@@ -490,6 +490,12 @@ impl Scanner {
             };
             let matched_text = captures[0].to_string();
 
+            // A JWT can be checked offline: its header and payload must decode
+            // to JSON. Strings that merely start with "eyJ" are not tokens.
+            if pattern_name == "JWT Token" && !crate::validate::is_well_formed_jwt(&matched_text) {
+                continue;
+            }
+
             // For the generic, name-based rules the value is the last capture
             // group; documentation stand-ins ("changeme", "<your-key>",
             // "${VAR}") are not findings.

@@ -57,9 +57,14 @@ to land as a single tested commit on the `claude/sota-loop` branch.
 - [x] **14. More providers.** Azure storage keys, GCP service-account JSON,
       Databricks, Datadog, Cloudflare, Vercel, Supabase, Telegram, Postman,
       Linear, Notion, Doppler, Age keys, Docker Hub PATs.
-- [ ] **15. Offline structural validation.** Checksums that can be verified
-      without a network call: GitHub token CRC32 suffix, npm token checksum,
-      JWT header/payload decoding. Sets confidence to high.
+- [x] **15a. JWT structural validation.** A JWT finding is kept only if its
+      header and payload decode to JSON and the header has a string `alg`.
+- [ ] **15b. Token checksums.** GitHub (`ghp_`…) and npm tokens end in a
+      base62 CRC32 of the token body. Blocked: implementing it needs a known
+      valid token or a published test vector to confirm the exact encoding,
+      and neither is available offline. A wrong implementation would mark
+      real tokens as invalid, so nothing was shipped. Needs a vector from the
+      owner (a revoked token is enough).
 - [ ] **16. Labelled accuracy corpus.** `tests/corpus/` with positives and
       negatives per rule and a test that reports precision and recall, so
       accuracy claims are reproducible.
@@ -146,3 +151,19 @@ to land as a single tested commit on the `claude/sota-loop` branch.
   documented token shapes; none was checked against a live credential. Each
   rule has a positive and a near-miss test. On this repo the new rules add no
   findings; `secretscan -q -f json .` takes 0.25 s. CI test subset 147 → 151.
+- Loop 15: item 15a (`src/validate.rs`); 15b left open, see above. On this
+  repo all 10 JWT fixtures are well-formed, so findings are unchanged; the
+  effect is on `eyJ…` lookalikes, covered by tests. CI test subset 151 → 155.
+
+## State at the end of the 15-iteration loop
+
+Done: the seed commit plus items 1–14 and 15a. Open: 15b (blocked), 16
+(accuracy corpus), 17 (GitHub Action), 18 (benchmarks), 19 (repo hygiene),
+20 (opt-in live verification, design note only).
+
+Known limits recorded in the log above: history scan covers HEAD only and
+reads the whole log into memory; database-URL rules still report placeholder
+passwords; provider formats were not checked against live credentials; the
+pre-commit hook was exercised as a git hook, not through the `pre-commit`
+framework; `memory_test` and `performance_benchmark_test` are not part of the
+CI subset and were not run.
