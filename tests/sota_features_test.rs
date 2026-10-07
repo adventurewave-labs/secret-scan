@@ -163,9 +163,10 @@ fn fingerprint_is_stable_and_ignores_line_number() {
     assert_ne!(fingerprint(&a), fingerprint(&other_rule));
     assert_ne!(fingerprint(&a), fingerprint(&other_file));
 
-    // Pinned value: guards against an accidental change to the hash, which
-    // would silently invalidate every stored baseline.
-    assert_eq!(fingerprint(&a), fingerprint(&sample("GitHub Token", "ghp_one")));
+    // Pinned literal: guards against an accidental change to the hash, which
+    // would silently invalidate every stored baseline. A fresh
+    // fingerprint(&sample(...)) call here would pass under ANY hash change.
+    assert_eq!(fingerprint(&a), "fbeeef2b61cbafea");
 }
 
 #[test]
@@ -181,6 +182,25 @@ fn redaction_removes_the_secret_everywhere() {
     // Short secrets keep no prefix at all.
     assert_eq!(redact_secret("hunter2pass"), "***********");
     assert_eq!(redact_secret(""), "");
+}
+
+#[test]
+fn redaction_masks_every_secret_sharing_a_line() {
+    // Two findings on the same line: each finding's reported line_content
+    // must have BOTH secrets masked, not just its own match.
+    let gh = format!("ghp_{}", filler(36));
+    let slack = format!("xoxb-{}", filler(30));
+    let line = format!("export GH=\"{gh}\" SLACK=\"{slack}\"\n");
+    let mut a = sample("GitHub Token", &gh);
+    let mut b = sample("Slack Token", &slack);
+    a.line_content = line.clone();
+    b.line_content = line;
+    let mut findings = vec![a, b];
+    redact_findings(&mut findings);
+    for f in &findings {
+        assert!(!f.line_content.contains(&gh), "github secret survived in {}", f.pattern_name);
+        assert!(!f.line_content.contains(&slack), "slack secret survived in {}", f.pattern_name);
+    }
 }
 
 #[test]

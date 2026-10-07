@@ -173,13 +173,21 @@ pub fn redact_secret(secret: &str) -> String {
 /// Call this after computing fingerprints: a fingerprint of redacted text
 /// would no longer identify the secret.
 pub fn redact_findings(findings: &mut [Finding]) {
+    // Snapshot every raw secret first: two findings can share a line, and
+    // each reported line must have ALL of them masked — masking only the
+    // finding's own match leaves the co-located secret in the clear.
+    let replacements: Vec<(String, String)> = findings
+        .iter()
+        .filter(|f| !f.matched_text.is_empty())
+        .map(|f| (f.matched_text.clone(), redact_secret(&f.matched_text)))
+        .collect();
     for finding in findings.iter_mut() {
-        if finding.matched_text.is_empty() {
-            continue;
+        for (raw, masked) in &replacements {
+            finding.line_content = finding.line_content.replace(raw.as_str(), masked.as_str());
         }
-        let masked = redact_secret(&finding.matched_text);
-        finding.line_content = finding.line_content.replace(&finding.matched_text, &masked);
-        finding.matched_text = masked;
+        if !finding.matched_text.is_empty() {
+            finding.matched_text = redact_secret(&finding.matched_text);
+        }
     }
 }
 

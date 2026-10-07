@@ -67,7 +67,16 @@ pub fn scan_history(
     since: Option<&str>,
 ) -> Result<Vec<HistoryFinding>, GitError> {
     let range = match since {
-        Some(rev) => format!("{rev}..HEAD"),
+        Some(rev) => {
+            // The rev is interpolated into a single `git log` argument; a
+            // value like `--output=x` would reach git as an option.
+            if rev.starts_with('-') {
+                return Err(GitError::Failed(
+                    format!("invalid --since revision {rev:?}: must not start with '-'"),
+                ));
+            }
+            format!("{rev}..HEAD")
+        }
         None => "HEAD".to_string(),
     };
     let output = Command::new("git")

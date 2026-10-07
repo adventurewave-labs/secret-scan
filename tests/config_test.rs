@@ -184,11 +184,20 @@ fn cli_custom_rule_reports_low_entropy_matches() {
 #[test]
 fn cli_config_file_is_not_scanned_and_disable_works() {
     let dir = TempDir::new().unwrap();
-    fs::write(dir.path().join("app.txt"), format!("t = \"{}\"\n", token())).unwrap();
-    // The allowlist entry is itself token-shaped; it must not be reported.
+    // A Slack token the config DISABLES: its absence proves disable works.
+    // (Old shape: a github-token in app.txt + github-token disabled — the
+    // finding vanished for either reason, so nothing was really exercised.)
+    fs::write(
+        dir.path().join("app.txt"),
+        "slack = \"xoxb-aB3dE6gH9jK2mN5pQ8sT1vW4yZ7cF0h\"\n",
+    )
+    .unwrap();
+    // The config file itself carries a still-ENABLED GitHub token in its
+    // allowlist comment: its absence proves the config FILE is excluded from
+    // the scan.
     fs::write(
         dir.path().join("custom.toml"),
-        format!("# known: \"{}\"\n[rules]\ndisable = [\"github-token\"]\n", token()),
+        format!("# known: \"{}\"\n[rules]\ndisable = [\"slack-token\"]\n", token()),
     )
     .unwrap();
     let out = run(dir.path(), &["--config", "custom.toml"]);
