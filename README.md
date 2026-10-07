@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/banner.svg" alt="secret-scan — animated banner" width="100%"></p>
+
 # secretscan 🔍 v0.2.1
 
 [![Crates.io](https://img.shields.io/crates/v/secretscan.svg)](https://crates.io/crates/secretscan)
