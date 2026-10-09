@@ -1,14 +1,14 @@
 [package]
 name = "secretscan"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 description = "A blazing-fast secret scanner for your codebase"
 authors = ["Secretscan Team <support@secretscan.io>"]
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/adventurewave-labs/secret-scan"
+homepage = "https://www.adventurewavelabs.space/projects/secret-scan"
 repository = "https://github.com/adventurewave-labs/secret-scan"
-documentation = "https://github.com/adventurewave-labs/secret-scan#readme"
+documentation = "https://docs.rs/secretscan"
 keywords = ["security", "secrets", "scanner", "credentials", "detection"]
 categories = ["command-line-utilities", "development-tools", "security"]
 exclude = [
