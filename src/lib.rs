@@ -1,8 +1,13 @@
+pub mod baseline;
+pub mod config;
 pub mod context;
 pub mod entropy;
+pub mod git;
 pub mod output;
 pub mod patterns;
+pub mod placeholder;
 pub mod scanner;
+pub mod validate;
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
