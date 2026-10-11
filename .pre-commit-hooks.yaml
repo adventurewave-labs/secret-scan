@@ -1,0 +1,7 @@
+- id: secretscan
+  name: secretscan
+  description: Block commits that add secrets (scans staged changes only)
+  entry: secretscan --staged --redact --quiet
+  language: rust
+  pass_filenames: false
+  stages: [pre-commit]

@@ -8,12 +8,13 @@ use crate::patterns::{
 use crate::Finding;
 use ignore::WalkBuilder;
 use rayon::prelude::*;
-use regex::Regex;
+use lazy_static::lazy_static;
+use regex::{Regex, RegexSet, RegexSetBuilder};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -38,15 +39,82 @@ impl From<std::io::Error> for ScannerError {
     }
 }
 
+lazy_static! {
+    // Compiled once. These used to be rebuilt with `Regex::new` for every line
+    // scanned, which dominated total scan time.
+    static ref OBFUSCATED_BASE64: Regex =
+        Regex::new(r#"["']([A-Za-z0-9+/]{20,}={0,2})["']"#).unwrap();
+    static ref OBFUSCATED_HEX: Regex = Regex::new(r#"["']([a-fA-F0-9]{40,})["']"#).unwrap();
+    static ref OBFUSCATED_URL_ENCODED: Regex =
+        Regex::new(r#"["']([^"']*%[0-9A-Fa-f]{2}[^"']*)["']"#).unwrap();
+    static ref OBFUSCATED_CHAR_ARRAY: Regex =
+        Regex::new(r"\[(?:\s*\d+\s*,?\s*){10,}\]").unwrap();
+}
+
+/// The active rules plus a `RegexSet` prefilter over all of them.
+///
+/// One pass of the set over a line says which rules can match, so the
+/// individual regexes run only for those. Most lines match nothing and cost a
+/// single automaton pass instead of one search per rule. The set is built from
+/// the same regexes it gates, so it cannot introduce false negatives.
+pub struct PatternSet {
+    names: Vec<String>,
+    regexes: Vec<Regex>,
+    set: Option<RegexSet>,
+}
+
+impl PatternSet {
+    pub fn new(patterns: &HashMap<String, Regex>) -> Self {
+        // Sorted by name so rules are always tried in the same order.
+        let mut entries: Vec<(&String, &Regex)> = patterns.iter().collect();
+        entries.sort_by(|a, b| a.0.cmp(b.0));
+        let names: Vec<String> = entries.iter().map(|(n, _)| (*n).clone()).collect();
+        let regexes: Vec<Regex> = entries.iter().map(|(_, r)| (*r).clone()).collect();
+        // If the combined automaton cannot be built (e.g. oversized custom
+        // rules) fall back to running every regex, which is always correct.
+        let set = RegexSetBuilder::new(regexes.iter().map(|r| r.as_str()))
+            .size_limit(256 * 1024 * 1024)
+            .build()
+            .ok();
+        PatternSet { names, regexes, set }
+    }
+
+    /// Whether the prefilter is active (false means every rule runs per line).
+    pub fn has_prefilter(&self) -> bool {
+        self.set.is_some()
+    }
+
+    pub fn len(&self) -> usize {
+        self.names.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.names.is_empty()
+    }
+
+    /// Rules that can match `text`, as (name, regex) pairs.
+    pub fn candidates<'a>(&'a self, text: &str) -> Vec<(&'a String, &'a Regex)> {
+        match &self.set {
+            Some(set) => set
+                .matches(text)
+                .into_iter()
+                .map(|i| (&self.names[i], &self.regexes[i]))
+                .collect(),
+            None => self.names.iter().zip(self.regexes.iter()).collect(),
+        }
+    }
+}
+
 pub struct Scanner {
-    patterns: HashMap<String, Regex>,
+    matcher: Arc<PatternSet>,
     context_filter: ContextFilter,
 }
 
 impl Scanner {
     pub fn new() -> Result<Self, ScannerError> {
+        let patterns = get_all_patterns_owned();
         Ok(Scanner {
-            patterns: get_all_patterns_owned(),
+            matcher: Arc::new(PatternSet::new(&patterns)),
             context_filter: ContextFilter::new(),
         })
     }
@@ -58,17 +126,23 @@ impl Scanner {
         }
 
         Ok(Scanner {
-            patterns: pattern_map,
+            matcher: Arc::new(PatternSet::new(&pattern_map)),
             context_filter: ContextFilter::new(),
         })
     }
 
     /// Create scanner with custom context filter
     pub fn with_context_filter(context_filter: ContextFilter) -> Result<Self, ScannerError> {
+        let patterns = get_all_patterns_owned();
         Ok(Scanner {
-            patterns: get_all_patterns_owned(),
+            matcher: Arc::new(PatternSet::new(&patterns)),
             context_filter,
         })
+    }
+
+    /// The active rules and their prefilter.
+    pub fn pattern_set(&self) -> &PatternSet {
+        &self.matcher
     }
 
     /// Set context filter for this scanner
@@ -83,19 +157,72 @@ impl Scanner {
 
     pub fn scan_directory(&self, path: &Path) -> Result<Vec<Finding>, ScannerError> {
         let mut findings = self.scan_directory_optimized(path)?;
-        Self::dedupe_overlapping_findings(&mut findings);
+        Self::postprocess(&mut findings);
         Ok(findings)
+    }
+
+    /// Scan a single line of text that did not come from a file on disk
+    /// (for example an added line in a git diff). The result is raw: pass the
+    /// collected findings through [`Scanner::postprocess`].
+    pub fn scan_text_line(&self, line: &str, line_number: usize, file_path: &Path) -> Vec<Finding> {
+        let mut findings = Vec::new();
+        Self::scan_line(
+            line,
+            line_number,
+            file_path,
+            &self.matcher,
+            &self.context_filter,
+            &mut findings,
+        );
+        findings
+    }
+
+    /// Turn raw findings into reported findings: collapse overlapping rules,
+    /// honour inline allow markers, and sort.
+    pub fn postprocess(findings: &mut Vec<Finding>) {
+        Self::dedupe_overlapping_findings(findings);
+        // Inline suppression: a line carrying an allow marker is an explicit,
+        // reviewable decision by the author (same convention as gitleaks).
+        findings.retain(|f| !Self::has_inline_allow(&f.line_content));
+        // Deterministic order — parallel scanning otherwise yields a different
+        // ordering per run, which breaks diffing, baselines and CI caching.
+        findings.sort_by(|a, b| {
+            (&a.file_path, a.line_number, &a.pattern_name, &a.matched_text).cmp(&(
+                &b.file_path,
+                b.line_number,
+                &b.pattern_name,
+                &b.matched_text,
+            ))
+        });
+    }
+
+    /// Specificity of a private-key rule: lower is more specific. `None` for
+    /// rules outside the private-key family.
+    fn private_key_rank(pattern_name: &str) -> Option<u8> {
+        match pattern_name {
+            "RSA Private Key" | "EC Private Key" | "PGP Private Key" | "SSH Private Key" => Some(0),
+            "Generic Private Key" => Some(1),
+            "Multi-line Private Key" => Some(2),
+            _ => None,
+        }
+    }
+
+    /// True when the line opts out of scanning via `secretscan:allow`
+    /// (or the gitleaks-compatible `gitleaks:allow`).
+    pub fn has_inline_allow(line: &str) -> bool {
+        line.contains("secretscan:allow") || line.contains("gitleaks:allow")
     }
 
     /// Remove redundant findings that describe the same secret on the same line.
     ///
-    /// Three surgical rules, applied per (file, line):
+    /// Four surgical rules, applied per (file, line):
     ///   1. Generic catch-all patterns (Suspicious Base64/Hex, Generic Secret, …) are
     ///      dropped when a specific pattern already matched overlapping text.
     ///   2. "Firebase API Key" is dropped when "Google API Key" matched the identical
     ///      text — the two formats are byte-identical (Firebase keys ARE Google keys).
     ///   3. The contextual "AWS Access Key" match is dropped when the bare
     ///      "AWS Access Key ID" already reported the key it contains.
+    ///   4. A private key is reported once, under its most specific rule.
     fn dedupe_overlapping_findings(findings: &mut Vec<Finding>) {
         const GENERIC: [&str; 5] = [
             "Suspicious Base64",
@@ -129,6 +256,18 @@ impl Scanner {
                     .iter()
                     .any(|o| same_line(o) && o.2 == "Google API Key" && o.3 == f.matched_text);
                 if shadowed {
+                    return false;
+                }
+            }
+            // Rule 4: one private key, one finding. A PEM header matches the
+            // specific rule, the generic rule and (when the whole block is on
+            // one line) the multi-line rule; keep only the most specific.
+            if let Some(rank) = Self::private_key_rank(&f.pattern_name) {
+                let outranked = snapshot.iter().any(|o| {
+                    same_line(o)
+                        && Self::private_key_rank(&o.2).is_some_and(|other| other < rank)
+                });
+                if outranked {
                     return false;
                 }
             }
@@ -179,7 +318,7 @@ impl Scanner {
             .collect::<Vec<_>>();
 
         // Create owned copies for thread safety
-        let patterns = Arc::new(self.patterns.clone());
+        let patterns = Arc::clone(&self.matcher);
         let context_filter = Arc::new(self.context_filter.clone());
 
         // Process files in parallel using rayon
@@ -280,448 +419,122 @@ impl Scanner {
         }
     }
 
-    /// Legacy parallel scanning method (for comparison)
-    pub fn scan_directory_rayon(&self, path: &Path) -> Result<Vec<Finding>, ScannerError> {
-        let mut findings = Vec::new();
-
-        // Use ignore crate to respect .gitignore
-        let walker = WalkBuilder::new(path)
-            .hidden(false)
-            .git_ignore(true)
-            .git_exclude(true)
-            .git_global(false)
-            .parents(true)
-            .ignore(true)
-            .build()
-            .filter_map(|e| e.ok())
-            .filter(|entry| entry.file_type().map(|ft| ft.is_file()).unwrap_or(false))
-            .collect::<Vec<_>>();
-
-        // Process files in parallel with rayon
-        let parallel_findings: Vec<Vec<Finding>> = walker
-            .par_iter()
-            .filter(|entry| {
-                // Skip .git directory files
-                if entry.path().components().any(|c| c.as_os_str() == ".git") {
-                    return false;
-                }
-
-                // Apply context filtering
-                !self.context_filter.should_skip_path(entry.path())
-            })
-            .map(|entry| self.scan_file(entry.path()).unwrap_or_else(|_| Vec::new()))
-            .collect();
-
-        // Flatten results
-        for file_findings in parallel_findings {
-            findings.extend(file_findings);
-        }
-
-        Ok(findings)
-    }
-
-    fn scan_file(&self, file_path: &Path) -> Result<Vec<Finding>, ScannerError> {
-        self.scan_file_streaming(file_path)
-    }
-
-    /// Memory-optimized file scanning using BufReader and streaming
-    fn scan_file_streaming(&self, file_path: &Path) -> Result<Vec<Finding>, ScannerError> {
-        let file = File::open(file_path)?;
-        let metadata = file.metadata()?;
-        let file_size = metadata.len();
-
-        // For very large files (>10MB), use chunked streaming
-        if file_size > 10 * 1024 * 1024 {
-            self.scan_large_file_chunked(file_path, file)
-        } else {
-            self.scan_file_buffered(file_path, file)
-        }
-    }
-
-    /// Scan regular files with BufReader for memory efficiency
-    fn scan_file_buffered(
-        &self,
-        file_path: &Path,
-        file: File,
-    ) -> Result<Vec<Finding>, ScannerError> {
-        let reader = BufReader::with_capacity(8192, file); // 8KB buffer
-        let mut findings = Vec::new();
-
-        for (line_number, line_result) in reader.lines().enumerate() {
-            let line_number = line_number + 1; // Convert to 1-indexed
-            let line = line_result?;
-
-            // Check against all patterns
-            for (pattern_name, pattern) in &self.patterns {
-                // Debug logging for AWS patterns when enabled
-                if pattern_name.contains("AWS") && std::env::var("SECRETSCAN_DEBUG").is_ok() {
-                    eprintln!("[DEBUG] Testing AWS pattern '{}' against line: {}", pattern_name, line.trim());
-                }
-                
-                if let Some(mat) = pattern.find(&line) {
-                    let matched_text = mat.as_str().to_string();
-                    
-                    // Debug logging for successful matches
-                    if pattern_name.contains("AWS") && std::env::var("SECRETSCAN_DEBUG").is_ok() {
-                        eprintln!("[DEBUG] AWS pattern '{}' MATCHED: '{}'", pattern_name, matched_text);
-                    }
-
-                    // Apply context filtering for line content
-                    if self.context_filter.should_skip_line(&line, &matched_text) {
-                        if pattern_name.contains("AWS") && std::env::var("SECRETSCAN_DEBUG").is_ok() {
-                            eprintln!("[DEBUG] AWS match skipped by context filter");
-                        }
-                        continue;
-                    }
-
-                    let entropy = shannon_entropy(&matched_text);
-                    
-                    // Apply adaptive entropy filtering based on pattern type and context
-                    if Self::should_include_by_entropy_static(pattern_name, &matched_text, entropy, &line) {
-                        if pattern_name.contains("AWS") && std::env::var("SECRETSCAN_DEBUG").is_ok() {
-                            eprintln!("[DEBUG] AWS finding added: {} in {}", matched_text, file_path.display());
-                        }
-                        findings.push(Finding {
-                            file_path: file_path.to_path_buf(),
-                            line_number,
-                            line_content: line.clone(),
-                            pattern_name: pattern_name.clone(),
-                            matched_text,
-                            entropy: Some(entropy),
-                        });
-                    } else if pattern_name.contains("AWS") && std::env::var("SECRETSCAN_DEBUG").is_ok() {
-                        eprintln!("[DEBUG] AWS match rejected by entropy filter: {} (entropy: {:.2})", matched_text, entropy);
-                    }
-                }
-            }
-            
-            // Additional analysis for obfuscated secrets
-            let additional_findings = self.analyze_obfuscated_secrets(&line, line_number, file_path);
-            findings.extend(additional_findings);
-        }
-
-        Ok(findings)
-    }
-
-    /// Scan very large files in chunks to minimize memory usage
-    fn scan_large_file_chunked(
-        &self,
-        file_path: &Path,
-        mut file: File,
-    ) -> Result<Vec<Finding>, ScannerError> {
-        const CHUNK_SIZE: usize = 1024 * 1024; // 1MB chunks
-
-        let mut findings = Vec::new();
-        let mut global_line_number = 0;
-        let mut buffer = vec![0; CHUNK_SIZE];
-        let mut overlap_buffer = String::new();
-
-        loop {
-            // Read chunk
-            let bytes_read = file.read(&mut buffer)?;
-            if bytes_read == 0 {
-                break; // EOF
-            }
-
-            // Convert to string, handling potential UTF-8 boundary issues
-            let chunk = match std::str::from_utf8(&buffer[..bytes_read]) {
-                Ok(s) => s.to_string(),
-                Err(e) => {
-                    // Handle UTF-8 boundary issues by truncating at last valid UTF-8 boundary
-                    let valid_up_to = e.valid_up_to();
-                    if valid_up_to > 0 {
-                        // Seek back to handle remaining bytes in next iteration
-                        let seek_back = bytes_read - valid_up_to;
-                        file.seek(SeekFrom::Current(-(seek_back as i64)))?;
-                        String::from_utf8_lossy(&buffer[..valid_up_to]).into_owned()
-                    } else {
-                        continue; // Skip malformed chunk
-                    }
-                }
-            };
-
-            // Prepend overlap from previous chunk
-            let content = if overlap_buffer.is_empty() {
-                chunk
-            } else {
-                format!("{}{}", overlap_buffer, chunk)
-            };
-
-            // Process lines in this chunk
-            let lines: Vec<&str> = content.lines().collect();
-            let lines_to_process = if bytes_read < CHUNK_SIZE {
-                // Last chunk, process all lines
-                lines.len()
-            } else {
-                // Not last chunk, save last line for overlap
-                lines.len().saturating_sub(1)
-            };
-
-            for line in lines.iter().take(lines_to_process) {
-                global_line_number += 1;
-
-                // Check against all patterns
-                for (pattern_name, pattern) in &self.patterns {
-                    if let Some(mat) = pattern.find(line) {
-                        let matched_text = mat.as_str().to_string();
-
-                        // Apply context filtering for line content
-                        if self.context_filter.should_skip_line(line, &matched_text) {
-                            continue;
-                        }
-
-                        let entropy = shannon_entropy(&matched_text);
-                        
-                        // Apply adaptive entropy filtering
-                        if self.should_include_by_entropy(pattern_name, &matched_text, entropy, line) {
-                            findings.push(Finding {
-                                file_path: file_path.to_path_buf(),
-                                line_number: global_line_number,
-                                line_content: line.to_string(),
-                                pattern_name: pattern_name.clone(),
-                                matched_text,
-                                entropy: Some(entropy),
-                            });
-                        }
-                    }
-                }
-            }
-
-            // Prepare overlap for next chunk
-            overlap_buffer = if lines_to_process < lines.len() {
-                lines[lines_to_process].to_string()
-            } else {
-                String::new()
-            };
-
-            // If we read less than chunk size, we've reached EOF
-            if bytes_read < CHUNK_SIZE {
-                // Process the final overlap line if it exists
-                if !overlap_buffer.is_empty() {
-                    global_line_number += 1;
-
-                    for (pattern_name, pattern) in &self.patterns {
-                        if let Some(mat) = pattern.find(&overlap_buffer) {
-                            let matched_text = mat.as_str().to_string();
-
-                            if !self
-                                .context_filter
-                                .should_skip_line(&overlap_buffer, &matched_text)
-                            {
-                                let entropy = shannon_entropy(&matched_text);
-                                
-                                // Apply adaptive entropy filtering
-                                if Self::should_include_by_entropy_static(pattern_name, &matched_text, entropy, &overlap_buffer) {
-                                    findings.push(Finding {
-                                        file_path: file_path.to_path_buf(),
-                                        line_number: global_line_number,
-                                        line_content: overlap_buffer.clone(),
-                                        pattern_name: pattern_name.clone(),
-                                        matched_text,
-                                        entropy: Some(entropy),
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-                break;
-            }
-        }
-
-        Ok(findings)
-    }
-
-    /// Static version of scan_file for use with Arc references in parallel processing
+    /// Scan one file, line by line.
+    ///
+    /// Lines are read as bytes and decoded lossily, so a file containing a few
+    /// invalid UTF-8 bytes is still scanned (invalid bytes become U+FFFD)
+    /// rather than skipped. Memory use is bounded by the longest line, whatever
+    /// the file size, so there is a single code path for all files.
     fn scan_file_static(
         file_path: &Path,
-        patterns: &HashMap<String, Regex>,
+        patterns: &PatternSet,
         context_filter: &ContextFilter,
     ) -> Result<Vec<Finding>, ScannerError> {
-        Self::scan_file_static_streaming(file_path, patterns, context_filter)
+        let reader = BufReader::with_capacity(64 * 1024, File::open(file_path)?);
+        Self::scan_lines(reader, file_path, patterns, context_filter)
     }
 
-    /// Memory-optimized static scan_file method
-    fn scan_file_static_streaming(
-        file_path: &Path,
-        patterns: &HashMap<String, Regex>,
-        context_filter: &ContextFilter,
+    /// Scan text from any reader (for example standard input). Findings are
+    /// reported against `label` and are already post-processed.
+    pub fn scan_reader<R: BufRead>(
+        &self,
+        reader: R,
+        label: &Path,
     ) -> Result<Vec<Finding>, ScannerError> {
-        let file = File::open(file_path)?;
-        let metadata = file.metadata()?;
-        let file_size = metadata.len();
-
-        // For very large files (>10MB), use chunked streaming
-        if file_size > 10 * 1024 * 1024 {
-            Self::scan_file_static_chunked(file_path, file, patterns, context_filter)
-        } else {
-            Self::scan_file_static_buffered(file_path, file, patterns, context_filter)
-        }
-    }
-
-    /// Static buffered file scanning
-    fn scan_file_static_buffered(
-        file_path: &Path,
-        file: File,
-        patterns: &HashMap<String, Regex>,
-        context_filter: &ContextFilter,
-    ) -> Result<Vec<Finding>, ScannerError> {
-        let reader = BufReader::with_capacity(8192, file);
-        let mut findings = Vec::new();
-
-        for (line_number, line_result) in reader.lines().enumerate() {
-            let line_number = line_number + 1; // Convert to 1-indexed
-            let line = line_result?;
-
-            // Check against all patterns
-            for (pattern_name, pattern) in patterns {
-                if let Some(mat) = pattern.find(&line) {
-                    let matched_text = mat.as_str().to_string();
-
-                    // Apply context filtering for line content
-                    if context_filter.should_skip_line(&line, &matched_text) {
-                        continue;
-                    }
-
-                    let entropy = shannon_entropy(&matched_text);
-                    
-                    // Apply adaptive entropy filtering based on pattern type and context
-                    if Self::should_include_by_entropy_static(pattern_name, &matched_text, entropy, &line) {
-                        findings.push(Finding {
-                            file_path: file_path.to_path_buf(),
-                            line_number,
-                            line_content: line.clone(),
-                            pattern_name: pattern_name.clone(),
-                            matched_text,
-                            entropy: Some(entropy),
-                        });
-                    }
-                }
-            }
-            
-            // Additional analysis for obfuscated secrets
-            let additional_findings = Self::analyze_obfuscated_secrets_static(&line, line_number, file_path, context_filter);
-            findings.extend(additional_findings);
-        }
-
+        let mut findings = Self::scan_lines(reader, label, &self.matcher, &self.context_filter)?;
+        Self::postprocess(&mut findings);
         Ok(findings)
     }
 
-    /// Static chunked file scanning for very large files
-    fn scan_file_static_chunked(
+    fn scan_lines<R: BufRead>(
+        mut reader: R,
         file_path: &Path,
-        mut file: File,
-        patterns: &HashMap<String, Regex>,
+        patterns: &PatternSet,
         context_filter: &ContextFilter,
     ) -> Result<Vec<Finding>, ScannerError> {
-        const CHUNK_SIZE: usize = 1024 * 1024; // 1MB chunks
-
         let mut findings = Vec::new();
-        let mut global_line_number = 0;
-        let mut buffer = vec![0; CHUNK_SIZE];
-        let mut overlap_buffer = String::new();
+        let mut raw = Vec::new();
+        let mut line_number = 0;
 
         loop {
-            let bytes_read = file.read(&mut buffer)?;
-            if bytes_read == 0 {
+            raw.clear();
+            if reader.read_until(b'\n', &mut raw)? == 0 {
                 break;
             }
-
-            let chunk = match std::str::from_utf8(&buffer[..bytes_read]) {
-                Ok(s) => s.to_string(),
-                Err(e) => {
-                    let valid_up_to = e.valid_up_to();
-                    if valid_up_to > 0 {
-                        let seek_back = bytes_read - valid_up_to;
-                        file.seek(SeekFrom::Current(-(seek_back as i64)))?;
-                        String::from_utf8_lossy(&buffer[..valid_up_to]).into_owned()
-                    } else {
-                        continue;
-                    }
+            line_number += 1;
+            if raw.last() == Some(&b'\n') {
+                raw.pop();
+                if raw.last() == Some(&b'\r') {
+                    raw.pop();
                 }
-            };
-
-            let content = if overlap_buffer.is_empty() {
-                chunk
-            } else {
-                format!("{}{}", overlap_buffer, chunk)
-            };
-
-            let lines: Vec<&str> = content.lines().collect();
-            let lines_to_process = if bytes_read < CHUNK_SIZE {
-                lines.len()
-            } else {
-                lines.len().saturating_sub(1)
-            };
-
-            for line in lines.iter().take(lines_to_process) {
-                global_line_number += 1;
-
-                for (pattern_name, pattern) in patterns {
-                    if let Some(mat) = pattern.find(line) {
-                        let matched_text = mat.as_str().to_string();
-
-                        if !context_filter.should_skip_line(line, &matched_text) {
-                            let entropy = shannon_entropy(&matched_text);
-
-                            findings.push(Finding {
-                                file_path: file_path.to_path_buf(),
-                                line_number: global_line_number,
-                                line_content: line.to_string(),
-                                pattern_name: pattern_name.clone(),
-                                matched_text,
-                                entropy: Some(entropy),
-                            });
-                        }
-                    }
-                }
-                
-                // Additional analysis for obfuscated secrets
-                let additional_findings = Self::analyze_obfuscated_secrets_static(line, global_line_number, file_path, context_filter);
-                findings.extend(additional_findings);
             }
-
-            overlap_buffer = if lines_to_process < lines.len() {
-                lines[lines_to_process].to_string()
-            } else {
-                String::new()
-            };
-
-            if bytes_read < CHUNK_SIZE {
-                if !overlap_buffer.is_empty() {
-                    global_line_number += 1;
-
-                    for (pattern_name, pattern) in patterns {
-                        if let Some(mat) = pattern.find(&overlap_buffer) {
-                            let matched_text = mat.as_str().to_string();
-
-                            if !context_filter.should_skip_line(&overlap_buffer, &matched_text) {
-                                let entropy = shannon_entropy(&matched_text);
-                                
-                                // Apply adaptive entropy filtering
-                                if Self::should_include_by_entropy_static(pattern_name, &matched_text, entropy, &overlap_buffer) {
-                                    findings.push(Finding {
-                                        file_path: file_path.to_path_buf(),
-                                        line_number: global_line_number,
-                                        line_content: overlap_buffer.clone(),
-                                        pattern_name: pattern_name.clone(),
-                                        matched_text,
-                                        entropy: Some(entropy),
-                                    });
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Additional analysis for obfuscated secrets in overlap buffer
-                    let additional_findings = Self::analyze_obfuscated_secrets_static(&overlap_buffer, global_line_number, file_path, context_filter);
-                    findings.extend(additional_findings);
-                }
-                break;
-            }
+            let line = String::from_utf8_lossy(&raw);
+            Self::scan_line(&line, line_number, file_path, patterns, context_filter, &mut findings);
         }
 
         Ok(findings)
+    }
+
+    /// Run every candidate rule, then the obfuscation analysis, on one line.
+    fn scan_line(
+        line: &str,
+        line_number: usize,
+        file_path: &Path,
+        patterns: &PatternSet,
+        context_filter: &ContextFilter,
+        findings: &mut Vec<Finding>,
+    ) {
+        for (pattern_name, pattern) in patterns.candidates(line) {
+            let Some(captures) = pattern.captures(line) else {
+                continue;
+            };
+            let matched_text = captures[0].to_string();
+
+            // A JWT can be checked offline: its header and payload must decode
+            // to JSON. Strings that merely start with "eyJ" are not tokens.
+            if pattern_name == "JWT Token" && !crate::validate::is_well_formed_jwt(&matched_text) {
+                continue;
+            }
+
+            // For the generic, name-based rules the value is the last capture
+            // group; documentation stand-ins ("changeme", "<your-key>",
+            // "${VAR}") are not findings.
+            if crate::placeholder::applies_to(pattern_name) {
+                let value = captures
+                    .iter()
+                    .skip(1)
+                    .flatten()
+                    .last()
+                    .map(|group| group.as_str())
+                    .unwrap_or(&matched_text);
+                if crate::placeholder::is_placeholder(value) {
+                    continue;
+                }
+            }
+
+            if context_filter.should_skip_line(line, &matched_text) {
+                continue;
+            }
+
+            let entropy = shannon_entropy(&matched_text);
+            if Self::should_include_by_entropy_static(pattern_name, &matched_text, entropy, line) {
+                findings.push(Finding {
+                    file_path: file_path.to_path_buf(),
+                    line_number,
+                    line_content: line.to_string(),
+                    pattern_name: pattern_name.clone(),
+                    matched_text,
+                    entropy: Some(entropy),
+                });
+            }
+        }
+
+        findings.extend(Self::analyze_obfuscated_secrets_static(
+            line,
+            line_number,
+            file_path,
+            context_filter,
+        ));
     }
 
     /// Get estimated memory usage for scanning a given number of files
@@ -766,11 +579,6 @@ impl Scanner {
         None
     }
     
-    /// Adaptive entropy filtering based on pattern type and context
-    fn should_include_by_entropy(&self, pattern_name: &str, matched_text: &str, entropy: f64, line: &str) -> bool {
-        Self::should_include_by_entropy_static(pattern_name, matched_text, entropy, line)
-    }
-    
     /// Static version of entropy filtering for use in parallel processing
     fn should_include_by_entropy_static(pattern_name: &str, matched_text: &str, entropy: f64, line: &str) -> bool {
         // Format-exact credentials (AKIA…, ghp_…, AIza…, secret_access_key=…) are
@@ -786,7 +594,10 @@ impl Scanner {
             "AWS Access Key" | "AWS Access Key ID" | "GitHub Token" | "Google API Key" 
             | "OpenAI API Key" | "Stripe API Key" | "SendGrid API Key" | "Slack Token" 
             | "Twilio API Key" | "Mailgun API Key" | "Firebase API Key" | "DigitalOcean Token"
-            | "Discord Token" | "Shopify Token" | "GitLab Token" => 2.5,
+            | "Discord Token" | "Shopify Token" | "GitLab Token"
+            | "GitHub Fine-Grained PAT" | "Anthropic API Key" | "OpenAI Project Key"
+            | "Hugging Face Token" | "npm Access Token" | "PyPI Upload Token"
+            | "Slack App Token" | "Stripe Restricted Key" => 2.5,
             
             // JWT tokens should have high entropy but allow some variation
             "JWT Token" => 3.0,
@@ -817,8 +628,21 @@ impl Scanner {
             "Azure Tenant ID" | "Azure Client Secret" => 2.5,
             "PayPal Client ID" | "PayPal Secret" => 2.5,
             
-            // Default threshold for unknown patterns
-            _ => 3.0,
+            // A structural marker, not a random string.
+            "GCP Service Account" => 0.0,
+
+            // Prefix- or provider-anchored formats: the shape is the signal.
+            "Azure Storage Account Key" | "Databricks Token" | "Supabase Access Token"
+            | "Telegram Bot Token" | "Postman API Key" | "Linear API Key" | "Notion Token"
+            | "Doppler Token" | "Docker Hub Token" | "Grafana Service Account Token"
+            | "Age Secret Key" | "Datadog API Key" | "Cloudflare API Token" | "Vercel Token" => 2.0,
+
+            // Built-in rules without a specific threshold.
+            _ if crate::patterns::is_builtin_rule(pattern_name) => 3.0,
+
+            // Custom rules: the author wrote the regex for exactly these
+            // strings, so every match is reported regardless of entropy.
+            _ => 0.0,
         };
         
         // Always include if entropy meets threshold
@@ -919,17 +743,12 @@ impl Scanner {
         }
     }
     
-    /// Analyze line for obfuscated/encoded secrets
-    fn analyze_obfuscated_secrets(&self, line: &str, line_number: usize, file_path: &Path) -> Vec<Finding> {
-        Self::analyze_obfuscated_secrets_static(line, line_number, file_path, &self.context_filter)
-    }
-    
     /// Static version of obfuscated secret analysis
     fn analyze_obfuscated_secrets_static(line: &str, line_number: usize, file_path: &Path, context_filter: &ContextFilter) -> Vec<Finding> {
         let mut findings = Vec::new();
         
         // Analyze suspicious base64 strings
-        let base64_regex = regex::Regex::new(r#"["']([A-Za-z0-9+/]{20,}={0,2})["']"#).unwrap();
+        let base64_regex = &*OBFUSCATED_BASE64;
         for cap in base64_regex.captures_iter(line) {
             if let Some(b64_match) = cap.get(1) {
                 let b64_string = b64_match.as_str();
@@ -956,7 +775,7 @@ impl Scanner {
         }
         
         // Analyze suspicious hex strings
-        let hex_regex = regex::Regex::new(r#"["']([a-fA-F0-9]{40,})["']"#).unwrap();
+        let hex_regex = &*OBFUSCATED_HEX;
         for cap in hex_regex.captures_iter(line) {
             if let Some(hex_match) = cap.get(1) {
                 let hex_string = hex_match.as_str();
@@ -983,7 +802,7 @@ impl Scanner {
         }
         
         // Analyze URL encoded strings
-        let url_encoded_regex = regex::Regex::new(r#"["']([^"']*%[0-9A-Fa-f]{2}[^"']*)["']"#).unwrap();
+        let url_encoded_regex = &*OBFUSCATED_URL_ENCODED;
         for cap in url_encoded_regex.captures_iter(line) {
             if let Some(url_match) = cap.get(1) {
                 let url_string = url_match.as_str();
@@ -1008,7 +827,7 @@ impl Scanner {
         }
         
         // Analyze character arrays
-        let char_array_regex = regex::Regex::new(r"\[(?:\s*\d+\s*,?\s*){10,}\]").unwrap();
+        let char_array_regex = &*OBFUSCATED_CHAR_ARRAY;
         for mat in char_array_regex.find_iter(line) {
             let array_string = mat.as_str();
             

@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 15 more rules (73 in total): Azure storage account keys, Databricks, Supabase, Telegram, Postman, Linear, Notion, Doppler, Docker Hub, Grafana, Age secret keys, GCP service-account files, Datadog, Cloudflare and Vercel
+- `secretscan -` scans standard input, so output from other commands can be piped in
+- `--staged` scans only what is staged for the next commit, and a `.pre-commit-hooks.yaml` makes the repository usable as a pre-commit hook
+- `--git` scans git history (every added line in every commit reachable from HEAD) and reports each secret at the commit that introduced it, with author and date; `--since <rev>` limits the scan to newer commits
+- `--exit-code <n>` and `--no-fail` to control the exit status when findings are reported
+- `.secretscan.toml` config file (`--config`, `--no-config`): allowlist by path, secret regex or fingerprint; disable rules by id; define custom rules with a severity
+- `--write-baseline <file>` records the current findings (fingerprints only, no secret text) and `--baseline <file>` suppresses them, so only new findings are reported and fail the run
+- Severity (`low`, `medium`, `high`, `critical`) on every rule, shown in text output, JSON and SARIF (`level` and `security-severity`)
+- `--min-severity <level>` to report, and fail on, only findings at or above a severity
+- JSON output now includes `rule_id`, `severity` and `fingerprint` for each finding
+- SARIF 2.1.0 output (`--format sarif`) for GitHub code scanning and other CI dashboards; results carry a stable fingerprint and never include secret text
+- `--redact` flag to mask secret values in text and JSON output
+- Inline suppression with `secretscan:allow` / `gitleaks:allow`
+- Eight modern token formats: GitHub fine-grained PAT, Anthropic, OpenAI project/service-account keys, Hugging Face, npm, PyPI, Slack app tokens, Stripe restricted keys and webhook secrets
+- `rule_id` and `fingerprint` helpers in the library API
+
+### Changed
+- "JWT Token" findings are structurally validated offline: the header and payload must decode to JSON and the header must name an algorithm, so `eyJ…` lookalikes are no longer reported
+- **Breaking:** errors (missing path, failed scan, unwritable output) now exit 2 instead of 1, so they can be told apart from "secrets found"
+- The generic, name-based rules (passwords, generic secrets, connection strings) no longer report placeholder values such as `changeme`, `<your-key>`, `${VAR}` or `xxxx`. Format-exact rules are unaffected
+- Custom patterns passed to `Scanner::with_patterns` are no longer subject to the entropy filter; every match is reported
+- One scan path for all files regardless of size; removed the separate chunked path for files over 10 MB, the legacy `scan_directory_rayon` and the `SECRETSCAN_DEBUG` output
+- Built-in rules are defined once, in a single `RULE_DEFS` table; `patterns::rules()` exposes them with stable ids. Detection behaviour is unchanged
+
+### Performance
+- A `RegexSet` prefilter runs each rule's regex only on lines it can match
+- Four regexes used for obfuscation analysis were recompiled for every scanned line; they are now compiled once
+
+### Fixed
+- The per-rule summary in text output was listed in a different order on every run
+- A file containing any invalid UTF-8 byte was skipped entirely; it is now scanned, with invalid bytes replaced
+- A single private key produced up to three findings (specific, generic and multi-line rules); it is now reported once under its most specific rule
+- Unlabelled PKCS#8 keys (`BEGIN PRIVATE KEY`) were reported as "RSA Private Key"; they are now "Generic Private Key"
+- "Heroku API Key" and "Azure Tenant ID" reported every UUID in a codebase, twice; both now require the provider name in the variable being assigned
+- Entropy values differed in the last bits from run to run (hash-map iteration order); they are now reproducible
+- Entropy divided by byte length instead of character count, under-reporting non-ASCII text
+- Findings came back in a different order on every run; they are now sorted by file, line and rule
+- `--version` reported 0.2.1 regardless of the crate version
+
 ## [0.2.1] - 2025-07-02
 
 ## [0.2.0] - 2025-07-02

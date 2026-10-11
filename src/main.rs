@@ -1,14 +1,19 @@
 use clap::{Arg, ArgAction, Command};
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
+use secretscan::config::Config;
+use secretscan::git::{scan_history, scan_staged, CommitInfo, HistoryFinding};
+use secretscan::patterns::{get_all_patterns_owned, register_custom_severity, Severity};
 use secretscan::{output::*, ContextFilter, Scanner};
 use std::fs;
-use std::path::PathBuf;
+use secretscan::baseline::Baseline;
+use std::path::{Path, PathBuf};
 use std::process;
 
 #[derive(Clone)]
 enum OutputFormat {
     Json,
+    Sarif,
     Text,
 }
 
@@ -16,20 +21,29 @@ impl From<&str> for OutputFormat {
     fn from(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "json" => OutputFormat::Json,
+            "sarif" => OutputFormat::Sarif,
             "text" => OutputFormat::Text,
             _ => OutputFormat::Text,
         }
     }
 }
 
+/// Exit status for anything that prevented a trustworthy result: bad
+/// arguments, unreadable config or baseline, a failed scan or write. Distinct
+/// from the findings status so CI can tell "secrets found" from "scan broken".
+const EXIT_ERROR: i32 = 2;
+
+/// File name reported for findings read from standard input.
+const STDIN_LABEL: &str = "<stdin>";
+
 fn main() {
     let matches = Command::new("secretscan")
-        .version("0.2.1")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("Secretscan Team")
         .about("A Rust CLI tool for detecting secrets in codebases")
         .arg(
             Arg::new("path")
-                .help("Path to scan for secrets")
+                .help("Path to scan for secrets, or - to read from standard input")
                 .value_name("PATH")
                 .default_value(".")
                 .index(1),
@@ -40,7 +54,7 @@ fn main() {
                 .short('f')
                 .help("Output format")
                 .value_name("FORMAT")
-                .value_parser(["json", "text"])
+                .value_parser(["json", "sarif", "text"])
                 .default_value("text"),
         )
         .arg(
@@ -63,6 +77,81 @@ fn main() {
                 .help("Skip test files and test-related patterns to reduce false positives")
                 .action(ArgAction::SetTrue),
         )
+        .arg(
+            Arg::new("min-severity")
+                .long("min-severity")
+                .help("Report only findings at or above this severity")
+                .value_name("LEVEL")
+                .value_parser(["low", "medium", "high", "critical"])
+                .default_value("low"),
+        )
+        .arg(
+            Arg::new("git")
+                .long("git")
+                .help("Scan the git history of PATH (every added line in every commit) instead of the working tree")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("staged")
+                .long("staged")
+                .help("Scan only what is staged for the next commit (for pre-commit hooks)")
+                .action(ArgAction::SetTrue)
+                .conflicts_with("git"),
+        )
+        .arg(
+            Arg::new("since")
+                .long("since")
+                .help("With --git: scan only commits after this revision (REV..HEAD)")
+                .value_name("REV")
+                .requires("git"),
+        )
+        .arg(
+            Arg::new("config")
+                .long("config")
+                .short('c')
+                .help("Config file (default: .secretscan.toml in the scanned directory, if present)")
+                .value_name("FILE")
+                .conflicts_with("no-config"),
+        )
+        .arg(
+            Arg::new("no-config")
+                .long("no-config")
+                .help("Ignore any .secretscan.toml")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("baseline")
+                .long("baseline")
+                .help("Suppress findings recorded in this baseline file; only new findings are reported")
+                .value_name("FILE"),
+        )
+        .arg(
+            Arg::new("write-baseline")
+                .long("write-baseline")
+                .help("Record every finding of this scan in a baseline file and exit 0")
+                .value_name("FILE"),
+        )
+        .arg(
+            Arg::new("exit-code")
+                .long("exit-code")
+                .help("Exit status when findings are reported")
+                .value_name("CODE")
+                .value_parser(clap::value_parser!(u8))
+                .default_value("1")
+                .conflicts_with("no-fail"),
+        )
+        .arg(
+            Arg::new("no-fail")
+                .long("no-fail")
+                .help("Exit 0 even when findings are reported (report-only mode); errors still exit 2")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("redact")
+                .long("redact")
+                .help("Mask secret values in the output (safe for CI logs and shared reports)")
+                .action(ArgAction::SetTrue),
+        )
         .get_matches();
 
     let scan_path = PathBuf::from(matches.get_one::<String>("path").unwrap());
@@ -70,23 +159,86 @@ fn main() {
     let output_file = matches.get_one::<String>("output");
     let quiet = matches.get_flag("quiet");
     let skip_tests = matches.get_flag("skip-tests");
+    let redact = matches.get_flag("redact");
+    let findings_exit_code: i32 = if matches.get_flag("no-fail") {
+        0
+    } else {
+        i32::from(*matches.get_one::<u8>("exit-code").unwrap())
+    };
+    let baseline_path = matches.get_one::<String>("baseline");
+    let write_baseline_path = matches.get_one::<String>("write-baseline");
+
+    // Load the baseline before scanning: a bad path should fail immediately.
+    let baseline = baseline_path.map(|path| match Baseline::load(Path::new(path)) {
+        Ok(baseline) => baseline,
+        Err(e) => {
+            eprintln!("{} Cannot read baseline {}: {}", "Error:".red().bold(), path, e);
+            process::exit(EXIT_ERROR);
+        }
+    });
+    let min_severity = matches
+        .get_one::<String>("min-severity")
+        .and_then(|level| Severity::parse(level))
+        .unwrap_or(Severity::Low);
+
+    let from_stdin = scan_path == Path::new("-");
+    if from_stdin && (matches.get_flag("git") || matches.get_flag("staged")) {
+        eprintln!(
+            "{} --git and --staged need a repository path, not standard input",
+            "Error:".red().bold()
+        );
+        process::exit(EXIT_ERROR);
+    }
 
     // Validate scan path
-    if !scan_path.exists() {
+    if !from_stdin && !scan_path.exists() {
         eprintln!(
             "{} Path does not exist: {}",
             "Error:".red().bold(),
             scan_path.display()
         );
-        process::exit(1);
+        process::exit(EXIT_ERROR);
     }
 
+    // An explicit --config must exist; a discovered one is optional.
+    let config_path = match matches.get_one::<String>("config") {
+        Some(path) => Some(PathBuf::from(path)),
+        None if matches.get_flag("no-config") => None,
+        None => Config::discover(&scan_path),
+    };
+    let config = match &config_path {
+        Some(path) => match Config::load(path) {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!(
+                    "{} Invalid config {}: {}",
+                    "Error:".red().bold(),
+                    path.display(),
+                    e
+                );
+                process::exit(EXIT_ERROR);
+            }
+        },
+        None => Config::default(),
+    };
+
     // Create scanner with appropriate context filter
-    let mut scanner = match Scanner::new() {
+    let scanner_result = if config.custom_rules().is_empty() {
+        Scanner::new()
+    } else {
+        let mut patterns: Vec<(String, regex::Regex)> =
+            get_all_patterns_owned().into_iter().collect();
+        for rule in config.custom_rules() {
+            register_custom_severity(&rule.name, rule.severity);
+            patterns.push((rule.name.clone(), rule.regex.clone()));
+        }
+        Scanner::with_patterns(patterns)
+    };
+    let mut scanner = match scanner_result {
         Ok(s) => s,
         Err(e) => {
             eprintln!("{} Failed to create scanner: {}", "Error:".red().bold(), e);
-            process::exit(1);
+            process::exit(EXIT_ERROR);
         }
     };
 
@@ -113,33 +265,138 @@ fn main() {
     };
 
     // Perform scan
-    let findings = match scanner.scan_directory(&scan_path) {
-        Ok(findings) => {
-            if let Some(pb) = &progress {
-                pb.finish_with_message(format!(
-                    "{} Found {} potential secrets",
-                    "✓".green().bold(),
-                    findings.len()
-                ));
+    let mut history: Vec<HistoryFinding> = Vec::new();
+    let scan_result = if matches.get_flag("git") {
+        let since = matches.get_one::<String>("since").map(String::as_str);
+        match scan_history(&scanner, &scan_path, since) {
+            Ok(found) => {
+                history = found;
+                Ok(history.iter().map(|h| h.finding.clone()).collect())
             }
-            findings
+            Err(e) => {
+                if let Some(pb) = &progress {
+                    pb.finish_and_clear();
+                }
+                eprintln!("{} {}", "Error:".red().bold(), e);
+                process::exit(EXIT_ERROR);
+            }
         }
+    } else if matches.get_flag("staged") {
+        match scan_staged(&scanner, &scan_path) {
+            Ok(found) => Ok(found),
+            Err(e) => {
+                if let Some(pb) = &progress {
+                    pb.finish_and_clear();
+                }
+                eprintln!("{} {}", "Error:".red().bold(), e);
+                process::exit(EXIT_ERROR);
+            }
+        }
+    } else if from_stdin {
+        scanner.scan_reader(std::io::stdin().lock(), Path::new(STDIN_LABEL))
+    } else {
+        scanner.scan_directory(&scan_path)
+    };
+    let mut findings: Vec<secretscan::Finding> = match scan_result {
+        Ok(findings) => findings,
         Err(e) => {
             if let Some(pb) = &progress {
                 pb.finish_with_message(format!("{} Scan failed", "✗".red().bold()));
             }
             eprintln!("{} Scan failed: {}", "Error:".red().bold(), e);
-            process::exit(1);
+            process::exit(EXIT_ERROR);
         }
     };
 
+    config.apply(&mut findings);
+    // The config file holds allowlist patterns and rule regexes, which can
+    // look like the secrets they describe; it is not itself scanned.
+    if let Some(config_file) = config_path.as_ref().and_then(|p| fs::canonicalize(p).ok()) {
+        findings.retain(|f| fs::canonicalize(&f.file_path).ok().as_ref() != Some(&config_file));
+    }
+
+    // Applied before anything is reported, so the summary line, the output
+    // and the exit code all describe the same set of findings.
+    filter_by_severity(&mut findings, min_severity);
+
+    if let Some(path) = write_baseline_path {
+        let recorded = Baseline::from_findings(&findings);
+        if let Err(e) = recorded.save(Path::new(path)) {
+            eprintln!("{} Cannot write baseline {}: {}", "Error:".red().bold(), path, e);
+            process::exit(EXIT_ERROR);
+        }
+        if let Some(pb) = &progress {
+            pb.finish_and_clear();
+        }
+        if !quiet {
+            println!(
+                "{} Recorded {} findings in {}",
+                "✓".green().bold(),
+                recorded.len(),
+                path
+            );
+        }
+        process::exit(0);
+    }
+
+    let suppressed = baseline
+        .as_ref()
+        .map(|baseline| baseline.suppress(&mut findings))
+        .unwrap_or(0);
+
+    if let Some(pb) = &progress {
+        let note = if baseline.is_some() {
+            format!(" ({} suppressed by baseline)", suppressed)
+        } else {
+            String::new()
+        };
+        pb.finish_with_message(format!(
+            "{} Found {} potential secrets{}",
+            "✓".green().bold(),
+            findings.len(),
+            note
+        ));
+    }
+
+    // Fingerprints identify the real secret, so take them before redaction.
+    let fingerprints: Vec<String> = findings.iter().map(fingerprint).collect();
+
+    // Commit details for the findings that survived filtering, in the same
+    // order; empty for a working-tree scan.
+    let commits: Vec<CommitInfo> = if history.is_empty() {
+        Vec::new()
+    } else {
+        findings
+            .iter()
+            .filter_map(|f| history.iter().find(|h| h.finding == *f).map(|h| h.commit.clone()))
+            .collect()
+    };
+
+    // SARIF is rendered before redaction: its fingerprints are derived from
+    // the real secret, and SARIF output never contains secret text anyway.
+    let sarif = match format {
+        OutputFormat::Sarif => match format_as_sarif_report(&findings, env!("CARGO_PKG_VERSION"), &commits) {
+            Ok(sarif) => Some(sarif),
+            Err(e) => {
+                eprintln!("{} Failed to format SARIF: {}", "Error:".red().bold(), e);
+                process::exit(EXIT_ERROR);
+            }
+        },
+        _ => None,
+    };
+
+    if redact {
+        redact_findings(&mut findings);
+    }
+
     // Format output
     let output_content = match format {
-        OutputFormat::Json => match format_as_json(&findings) {
+        OutputFormat::Sarif => sarif.unwrap_or_default(),
+        OutputFormat::Json => match format_as_json_report(&findings, &fingerprints, &commits) {
             Ok(json) => json,
             Err(e) => {
                 eprintln!("{} Failed to format JSON: {}", "Error:".red().bold(), e);
-                process::exit(1);
+                process::exit(EXIT_ERROR);
             }
         },
         OutputFormat::Text => {
@@ -154,7 +411,7 @@ fn main() {
                         findings.len()
                     )
                     .bold(),
-                    format_as_text(&findings),
+                    format_as_text_report(&findings, &commits),
                     generate_summary(&findings).bright_blue()
                 )
             }
@@ -170,7 +427,7 @@ fn main() {
                 file_path,
                 e
             );
-            process::exit(1);
+            process::exit(EXIT_ERROR);
         }
         if !quiet {
             println!("{} Results written to {}", "✓".green().bold(), file_path);
@@ -183,6 +440,6 @@ fn main() {
     if findings.is_empty() {
         process::exit(0);
     } else {
-        process::exit(1); // Non-zero exit code when secrets are found
+        process::exit(findings_exit_code);
     }
 }

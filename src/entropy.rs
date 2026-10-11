@@ -1,25 +1,28 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
+/// Shannon entropy of `s` in bits per character.
+///
+/// Frequencies are accumulated in a `BTreeMap` so the floating-point sum is
+/// taken in a fixed order: with a `HashMap` the per-process random iteration
+/// order changed the last bits of the result from run to run, making scan
+/// output non-reproducible. The divisor is the character count (not the byte
+/// length), so multi-byte text is measured correctly.
 pub fn shannon_entropy(s: &str) -> f64 {
-    if s.is_empty() {
+    let mut frequency: BTreeMap<char, usize> = BTreeMap::new();
+    let mut total = 0usize;
+    for c in s.chars() {
+        *frequency.entry(c).or_insert(0) += 1;
+        total += 1;
+    }
+    if total == 0 {
         return 0.0;
     }
 
-    let mut frequency = HashMap::new();
-    let len = s.len() as f64;
-
-    // Count character frequencies
-    for c in s.chars() {
-        *frequency.entry(c).or_insert(0) += 1;
-    }
-
-    // Calculate Shannon entropy
+    let len = total as f64;
     let mut entropy = 0.0;
     for &count in frequency.values() {
         let probability = count as f64 / len;
-        if probability > 0.0 {
-            entropy -= probability * probability.log2();
-        }
+        entropy -= probability * probability.log2();
     }
 
     entropy
