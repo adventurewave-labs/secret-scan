@@ -25,7 +25,12 @@ fn severities_are_ordered_and_round_trip() {
     assert!(Severity::Low < Severity::Medium);
     assert!(Severity::Medium < Severity::High);
     assert!(Severity::High < Severity::Critical);
-    for level in [Severity::Low, Severity::Medium, Severity::High, Severity::Critical] {
+    for level in [
+        Severity::Low,
+        Severity::Medium,
+        Severity::High,
+        Severity::Critical,
+    ] {
         assert_eq!(Severity::parse(level.as_str()), Some(level));
         assert_eq!(Severity::parse(&level.as_str().to_uppercase()), Some(level));
         assert_eq!(level.to_string(), level.as_str());
@@ -49,8 +54,16 @@ fn representative_rules_have_the_expected_severity() {
         assert_eq!(severity_for(name), expected, "{name}");
     }
     // Every level is in use, and every rule resolves to its own severity.
-    for level in [Severity::Low, Severity::Medium, Severity::High, Severity::Critical] {
-        assert!(rules().iter().any(|r| r.severity == level), "{level} unused");
+    for level in [
+        Severity::Low,
+        Severity::Medium,
+        Severity::High,
+        Severity::Critical,
+    ] {
+        assert!(
+            rules().iter().any(|r| r.severity == level),
+            "{level} unused"
+        );
     }
     for rule in rules() {
         assert_eq!(severity_for(rule.name), rule.severity);
@@ -60,15 +73,24 @@ fn representative_rules_have_the_expected_severity() {
 #[test]
 fn decoded_findings_inherit_the_underlying_rule_and_unknown_rules_are_medium() {
     assert_eq!(severity_for("Base64 Encoded GitHub Token"), Severity::High);
-    assert_eq!(severity_for("Hex Encoded RSA Private Key"), Severity::Critical);
+    assert_eq!(
+        severity_for("Hex Encoded RSA Private Key"),
+        Severity::Critical
+    );
     assert_eq!(severity_for("URL Decoded PostgreSQL URL"), Severity::High);
-    assert_eq!(severity_for("Character Array Encoded Generic Secret"), Severity::Medium);
+    assert_eq!(
+        severity_for("Character Array Encoded Generic Secret"),
+        Severity::Medium
+    );
     assert_eq!(severity_for("My Custom Rule"), Severity::Medium);
 }
 
 #[test]
 fn json_carries_rule_id_severity_and_fingerprint() {
-    let findings = vec![finding("GitHub Token", "ghp_abc"), finding("Suspicious Hex", "deadbeef")];
+    let findings = vec![
+        finding("GitHub Token", "ghp_abc"),
+        finding("Suspicious Hex", "deadbeef"),
+    ];
     let doc: serde_json::Value = serde_json::from_str(&format_as_json(&findings).unwrap()).unwrap();
     assert_eq!(doc[0]["rule_id"], "github-token");
     assert_eq!(doc[0]["severity"], "high");
@@ -105,11 +127,22 @@ fn sarif_maps_severity_to_level_and_security_severity() {
     assert_eq!(results[1]["level"], "warning");
     assert_eq!(results[2]["level"], "note");
 
-    let rules = doc["runs"][0]["tool"]["driver"]["rules"].as_array().unwrap();
+    let rules = doc["runs"][0]["tool"]["driver"]["rules"]
+        .as_array()
+        .unwrap();
     let rule = |id: &str| rules.iter().find(|r| r["id"] == id).unwrap();
-    assert_eq!(rule("rsa-private-key")["properties"]["security-severity"], "9.5");
-    assert_eq!(rule("generic-secret")["defaultConfiguration"]["level"], "warning");
-    assert_eq!(rule("azure-tenant-id")["properties"]["security-severity"], "3.0");
+    assert_eq!(
+        rule("rsa-private-key")["properties"]["security-severity"],
+        "9.5"
+    );
+    assert_eq!(
+        rule("generic-secret")["defaultConfiguration"]["level"],
+        "warning"
+    );
+    assert_eq!(
+        rule("azure-tenant-id")["properties"]["security-severity"],
+        "3.0"
+    );
 }
 
 #[test]

@@ -4,9 +4,7 @@
 //! Token fixtures are assembled at runtime so no credential-shaped literal is
 //! committed to the repository.
 
-use secretscan::output::{
-    fingerprint, format_as_sarif, redact_findings, redact_secret, rule_id,
-};
+use secretscan::output::{fingerprint, format_as_sarif, redact_findings, redact_secret, rule_id};
 use secretscan::{ContextFilter, Finding, Scanner};
 use std::fs;
 use std::path::PathBuf;
@@ -49,12 +47,18 @@ fn sample(pattern: &str, secret: &str) -> Finding {
 #[test]
 fn modern_provider_tokens_are_detected() {
     let cases: Vec<(&str, String)> = vec![
-        ("GitHub Fine-Grained PAT", format!("github_pat_{}", filler(82))),
+        (
+            "GitHub Fine-Grained PAT",
+            format!("github_pat_{}", filler(82)),
+        ),
         ("Anthropic API Key", format!("sk-ant-api03-{}", filler(95))),
         ("OpenAI Project Key", format!("sk-proj-{}", filler(48))),
         ("Hugging Face Token", format!("hf_{}", filler(34))),
         ("npm Access Token", format!("npm_{}", filler(36))),
-        ("PyPI Upload Token", format!("pypi-AgEIcHlwaS5vcmc{}", filler(60))),
+        (
+            "PyPI Upload Token",
+            format!("pypi-AgEIcHlwaS5vcmc{}", filler(60)),
+        ),
         (
             "Slack App Token",
             format!("xapp-1-A0{}-123456789012-{}", "B2C3D4E5F", hex_filler(64)),
@@ -85,7 +89,11 @@ fn truncated_tokens_are_not_reported_as_modern_formats() {
         filler(8)
     );
     let findings = scan(&content);
-    for name in ["GitHub Fine-Grained PAT", "npm Access Token", "Hugging Face Token"] {
+    for name in [
+        "GitHub Fine-Grained PAT",
+        "npm Access Token",
+        "Hugging Face Token",
+    ] {
         assert!(
             !findings.iter().any(|f| f.pattern_name == name),
             "{} matched a truncated token",
@@ -141,7 +149,10 @@ fn findings_are_returned_in_deterministic_order() {
 #[test]
 fn rule_ids_are_slugs() {
     assert_eq!(rule_id("AWS Access Key ID"), "aws-access-key-id");
-    assert_eq!(rule_id("GitHub Fine-Grained PAT"), "github-fine-grained-pat");
+    assert_eq!(
+        rule_id("GitHub Fine-Grained PAT"),
+        "github-fine-grained-pat"
+    );
     assert_eq!(rule_id("Multi-line Private Key"), "multi-line-private-key");
     assert_eq!(rule_id("  Odd -- Name! "), "odd-name");
 }
@@ -198,8 +209,16 @@ fn redaction_masks_every_secret_sharing_a_line() {
     let mut findings = vec![a, b];
     redact_findings(&mut findings);
     for f in &findings {
-        assert!(!f.line_content.contains(&gh), "github secret survived in {}", f.pattern_name);
-        assert!(!f.line_content.contains(&slack), "slack secret survived in {}", f.pattern_name);
+        assert!(
+            !f.line_content.contains(&gh),
+            "github secret survived in {}",
+            f.pattern_name
+        );
+        assert!(
+            !f.line_content.contains(&slack),
+            "slack secret survived in {}",
+            f.pattern_name
+        );
     }
 }
 
@@ -246,7 +265,13 @@ fn sarif_for_no_findings_is_a_valid_empty_run() {
     let doc: serde_json::Value =
         serde_json::from_str(&format_as_sarif(&[], "1.0.0").unwrap()).unwrap();
     assert_eq!(doc["runs"][0]["results"].as_array().unwrap().len(), 0);
-    assert_eq!(doc["runs"][0]["tool"]["driver"]["rules"].as_array().unwrap().len(), 0);
+    assert_eq!(
+        doc["runs"][0]["tool"]["driver"]["rules"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
 }
 
 #[test]
@@ -254,7 +279,10 @@ fn entropy_is_reproducible_and_counts_characters() {
     let text = format!("ghp_{}", filler(36));
     let first = secretscan::shannon_entropy(&text);
     for _ in 0..200 {
-        assert_eq!(first.to_bits(), secretscan::shannon_entropy(&text).to_bits());
+        assert_eq!(
+            first.to_bits(),
+            secretscan::shannon_entropy(&text).to_bits()
+        );
     }
     // Four distinct characters, each once: exactly 2 bits, whatever their
     // UTF-8 width.

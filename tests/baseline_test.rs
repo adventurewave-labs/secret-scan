@@ -74,7 +74,10 @@ fn baseline_is_sorted_deduplicated_and_holds_no_secret() {
     let path = dir.path().join("baseline.json");
     baseline.save(&path).unwrap();
     let text = fs::read_to_string(&path).unwrap();
-    assert!(!text.contains(&a) && !text.contains(&b), "baseline leaked a secret");
+    assert!(
+        !text.contains(&a) && !text.contains(&b),
+        "baseline leaked a secret"
+    );
     assert!(text.ends_with('\n'));
     assert_eq!(Baseline::load(&path).unwrap(), baseline);
 
@@ -101,7 +104,10 @@ fn suppress_removes_known_findings_even_when_they_move() {
         .collect();
     assert_eq!(
         left,
-        vec![("src/a.rs".to_string(), new.as_str()), ("src/b.rs".to_string(), old.as_str())]
+        vec![
+            ("src/a.rs".to_string(), new.as_str()),
+            ("src/b.rs".to_string(), old.as_str())
+        ]
     );
 }
 

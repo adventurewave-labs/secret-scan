@@ -41,7 +41,11 @@ fn key_findings(findings: &[Finding]) -> Vec<&str> {
 }
 
 fn pem(label: &str) -> String {
-    format!("{}\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n{}\n", begin(label), end(label))
+    format!(
+        "{}\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n{}\n",
+        begin(label),
+        end(label)
+    )
 }
 
 #[test]

@@ -17,9 +17,12 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 /// token is well-formed, not that it is live.
 pub fn is_well_formed_jwt(text: &str) -> bool {
     let mut segments = text.split('.');
-    let (Some(header), Some(payload), Some(signature), None) =
-        (segments.next(), segments.next(), segments.next(), segments.next())
-    else {
+    let (Some(header), Some(payload), Some(signature), None) = (
+        segments.next(),
+        segments.next(),
+        segments.next(),
+        segments.next(),
+    ) else {
         return false;
     };
     if signature.is_empty() {
@@ -47,7 +50,12 @@ mod tests {
     }
 
     fn jwt(header: &str, payload: &str) -> String {
-        format!("{}.{}.{}", segment(header), segment(payload), "c2lnbmF0dXJlLWJ5dGVz")
+        format!(
+            "{}.{}.{}",
+            segment(header),
+            segment(payload),
+            "c2lnbmF0dXJlLWJ5dGVz"
+        )
     }
 
     #[test]
@@ -56,7 +64,10 @@ mod tests {
             r#"{"alg":"HS256","typ":"JWT"}"#,
             r#"{"sub":"1234567890","iat":1516239022}"#
         )));
-        assert!(is_well_formed_jwt(&jwt(r#"{"alg":"RS256","kid":"k1"}"#, r#"{}"#)));
+        assert!(is_well_formed_jwt(&jwt(
+            r#"{"alg":"RS256","kid":"k1"}"#,
+            r#"{}"#
+        )));
         // Unsecured JWTs still declare an algorithm.
         assert!(is_well_formed_jwt(&jwt(r#"{"alg":"none"}"#, r#"{"a":1}"#)));
     }
@@ -73,9 +84,15 @@ mod tests {
             // payload is not an object
             jwt(r#"{"alg":"HS256"}"#, r#"["a","b"]"#),
             // payload is not JSON
-            format!("{good_header}.{}.c2ln", URL_SAFE_NO_PAD.encode("plain text here")),
+            format!(
+                "{good_header}.{}.c2ln",
+                URL_SAFE_NO_PAD.encode("plain text here")
+            ),
             // header is truncated JSON
-            format!("{}.{good_payload}.c2ln", URL_SAFE_NO_PAD.encode(r#"{"alg":"HS25"#)),
+            format!(
+                "{}.{good_payload}.c2ln",
+                URL_SAFE_NO_PAD.encode(r#"{"alg":"HS25"#)
+            ),
             // not base64url at all
             format!("eyJ!!!!!!!!!!.{good_payload}.c2ln"),
             // wrong number of segments

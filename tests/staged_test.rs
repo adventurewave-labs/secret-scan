@@ -20,19 +20,37 @@ fn scanner() -> Scanner {
 fn git(dir: &Path, args: &[&str]) {
     let out = Command::new("git")
         .current_dir(dir)
-        .args(["-c", "user.name=Ada Tester", "-c", "user.email=ada@example.invalid"])
-        .args(["-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"])
+        .args([
+            "-c",
+            "user.name=Ada Tester",
+            "-c",
+            "user.email=ada@example.invalid",
+        ])
+        .args([
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "init.defaultBranch=main",
+        ])
         .args(args)
         .output()
         .expect("git must be installed to run these tests");
-    assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 /// A repo with one committed secret (in old.txt) and a clean index.
 fn repo() -> TempDir {
     let dir = TempDir::new().unwrap();
     git(dir.path(), &["init", "-q"]);
-    fs::write(dir.path().join("old.txt"), format!("legacy = \"{}\"\n", token('o'))).unwrap();
+    fs::write(
+        dir.path().join("old.txt"),
+        format!("legacy = \"{}\"\n", token('o')),
+    )
+    .unwrap();
     fs::write(dir.path().join("app.txt"), "line one\nline two\n").unwrap();
     git(dir.path(), &["add", "-A"]);
     git(dir.path(), &["commit", "-q", "-m", "initial"]);
@@ -81,20 +99,32 @@ fn staged_secret_is_found_with_the_right_file_and_line() {
 fn unstaged_edits_are_ignored() {
     let dir = repo();
     // Modified in the working tree but not added: a commit would not include it.
-    fs::write(dir.path().join("app.txt"), format!("token = \"{}\"\n", token('u'))).unwrap();
+    fs::write(
+        dir.path().join("app.txt"),
+        format!("token = \"{}\"\n", token('u')),
+    )
+    .unwrap();
     assert!(scan_staged(&scanner(), dir.path()).unwrap().is_empty());
 }
 
 #[test]
 fn new_file_is_scanned_and_removals_are_not_findings() {
     let dir = repo();
-    fs::write(dir.path().join("new.env"), format!("A=1\nGH=\"{}\"\n", token('f'))).unwrap();
+    fs::write(
+        dir.path().join("new.env"),
+        format!("A=1\nGH=\"{}\"\n", token('f')),
+    )
+    .unwrap();
     fs::remove_file(dir.path().join("old.txt")).unwrap();
     git(dir.path(), &["add", "-A"]);
 
     let findings = scan_staged(&scanner(), dir.path()).unwrap();
     let secrets: Vec<&str> = findings.iter().map(|f| f.matched_text.as_str()).collect();
-    assert_eq!(secrets, vec![token('f')], "deleting old.txt must not report its secret");
+    assert_eq!(
+        secrets,
+        vec![token('f')],
+        "deleting old.txt must not report its secret"
+    );
     assert_eq!(findings[0].line_number, 2);
 }
 
@@ -124,10 +154,9 @@ fn errors_and_usage() {
 
 #[test]
 fn pre_commit_hook_definition_is_valid_and_uses_staged_mode() {
-    let text = fs::read_to_string(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join(".pre-commit-hooks.yaml"),
-    )
-    .unwrap();
+    let text =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(".pre-commit-hooks.yaml"))
+            .unwrap();
     for required in [
         "- id: secretscan",
         "language: rust",
@@ -147,7 +176,10 @@ fn the_hook_entry_blocks_a_commit_that_adds_a_secret() {
     let hook = dir.path().join(".git/hooks/pre-commit");
     fs::write(
         &hook,
-        format!("#!/bin/sh\nexec \"{}\" --staged --redact --quiet\n", env!("CARGO_BIN_EXE_secretscan")),
+        format!(
+            "#!/bin/sh\nexec \"{}\" --staged --redact --quiet\n",
+            env!("CARGO_BIN_EXE_secretscan")
+        ),
     )
     .unwrap();
     #[cfg(unix)]
@@ -158,25 +190,43 @@ fn the_hook_entry_blocks_a_commit_that_adds_a_secret() {
     let commit = |dir: &Path| {
         Command::new("git")
             .current_dir(dir)
-            .args(["-c", "user.name=Ada", "-c", "user.email=ada@example.invalid"])
+            .args([
+                "-c",
+                "user.name=Ada",
+                "-c",
+                "user.email=ada@example.invalid",
+            ])
             .args(["-c", "commit.gpgsign=false", "commit", "-q", "-m", "change"])
             .output()
             .unwrap()
     };
 
-    fs::write(dir.path().join("app.txt"), format!("t = \"{}\"\n", token('h'))).unwrap();
+    fs::write(
+        dir.path().join("app.txt"),
+        format!("t = \"{}\"\n", token('h')),
+    )
+    .unwrap();
     git(dir.path(), &["add", "-A"]);
     let blocked = commit(dir.path());
-    assert!(!blocked.status.success(), "commit with a secret must be rejected");
+    assert!(
+        !blocked.status.success(),
+        "commit with a secret must be rejected"
+    );
     let output = format!(
         "{}{}",
         String::from_utf8_lossy(&blocked.stdout),
         String::from_utf8_lossy(&blocked.stderr)
     );
     assert!(output.contains("GitHub Token"));
-    assert!(!output.contains(&token('h')), "hook output must be redacted");
+    assert!(
+        !output.contains(&token('h')),
+        "hook output must be redacted"
+    );
 
     fs::write(dir.path().join("app.txt"), "harmless\n").unwrap();
     git(dir.path(), &["add", "-A"]);
-    assert!(commit(dir.path()).status.success(), "clean commit must pass");
+    assert!(
+        commit(dir.path()).status.success(),
+        "clean commit must pass"
+    );
 }

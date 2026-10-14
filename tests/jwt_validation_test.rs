@@ -32,7 +32,10 @@ fn token(header: &str, payload: &str) -> String {
 
 #[test]
 fn a_real_shaped_jwt_is_reported() {
-    let jwt = token(r#"{"alg":"HS256","typ":"JWT"}"#, r#"{"sub":"1234567890","admin":true}"#);
+    let jwt = token(
+        r#"{"alg":"HS256","typ":"JWT"}"#,
+        r#"{"sub":"1234567890","admin":true}"#,
+    );
     assert_eq!(jwt_findings(&format!("session = \"{jwt}\"\n")), vec![jwt]);
 }
 

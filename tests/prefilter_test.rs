@@ -87,7 +87,10 @@ fn candidates_are_returned_in_a_fixed_order() {
 #[test]
 fn custom_patterns_get_a_prefilter_too() {
     let mut patterns = HashMap::new();
-    patterns.insert("Ticket".to_string(), Regex::new(r"TICKET-[0-9]{4}").unwrap());
+    patterns.insert(
+        "Ticket".to_string(),
+        Regex::new(r"TICKET-[0-9]{4}").unwrap(),
+    );
     patterns.insert("Word".to_string(), Regex::new(r"\bzebra\b").unwrap());
     let set = PatternSet::new(&patterns);
     assert!(set.has_prefilter());

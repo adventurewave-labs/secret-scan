@@ -64,10 +64,22 @@ fn errors_exit_two_and_are_not_masked_by_no_fail() {
     let dir = dirty();
     assert_eq!(code(dir.path(), &["does-not-exist"]), Some(2));
     assert_eq!(code(dir.path(), &["--no-fail", "does-not-exist"]), Some(2));
-    assert_eq!(code(dir.path(), &["--no-fail", "--baseline", "absent.json", "."]), Some(2));
-    assert_eq!(code(dir.path(), &["--exit-code", "7", "--config", "absent.toml", "."]), Some(2));
+    assert_eq!(
+        code(dir.path(), &["--no-fail", "--baseline", "absent.json", "."]),
+        Some(2)
+    );
+    assert_eq!(
+        code(
+            dir.path(),
+            &["--exit-code", "7", "--config", "absent.toml", "."]
+        ),
+        Some(2)
+    );
     // Output file in a directory that does not exist.
-    assert_eq!(code(dir.path(), &["-o", "missing-dir/out.txt", "."]), Some(2));
+    assert_eq!(
+        code(dir.path(), &["-o", "missing-dir/out.txt", "."]),
+        Some(2)
+    );
 }
 
 #[test]
@@ -75,6 +87,9 @@ fn invalid_usage_exits_two() {
     let dir = clean();
     assert_eq!(code(dir.path(), &["--exit-code", "300", "."]), Some(2));
     assert_eq!(code(dir.path(), &["--exit-code", "abc", "."]), Some(2));
-    assert_eq!(code(dir.path(), &["--exit-code", "3", "--no-fail", "."]), Some(2));
+    assert_eq!(
+        code(dir.path(), &["--exit-code", "3", "--no-fail", "."]),
+        Some(2)
+    );
     assert_eq!(code(dir.path(), &["--format", "xml", "."]), Some(2));
 }

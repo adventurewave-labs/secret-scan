@@ -1,14 +1,14 @@
 use crate::context::ContextFilter;
 use crate::entropy::shannon_entropy;
 use crate::patterns::{
-    get_all_patterns_owned, analyze_base64_for_secrets, analyze_hex_for_secrets,
-    analyze_url_encoded_for_secrets, analyze_character_array_for_secrets,
-    is_suspicious_base64, is_suspicious_hex
+    analyze_base64_for_secrets, analyze_character_array_for_secrets, analyze_hex_for_secrets,
+    analyze_url_encoded_for_secrets, get_all_patterns_owned, is_suspicious_base64,
+    is_suspicious_hex,
 };
 use crate::Finding;
 use ignore::WalkBuilder;
-use rayon::prelude::*;
 use lazy_static::lazy_static;
+use rayon::prelude::*;
 use regex::{Regex, RegexSet, RegexSetBuilder};
 use std::collections::HashMap;
 use std::error::Error;
@@ -76,7 +76,11 @@ impl PatternSet {
             .size_limit(256 * 1024 * 1024)
             .build()
             .ok();
-        PatternSet { names, regexes, set }
+        PatternSet {
+            names,
+            regexes,
+            set,
+        }
     }
 
     /// Whether the prefilter is active (false means every rule runs per line).
@@ -187,12 +191,18 @@ impl Scanner {
         // Deterministic order — parallel scanning otherwise yields a different
         // ordering per run, which breaks diffing, baselines and CI caching.
         findings.sort_by(|a, b| {
-            (&a.file_path, a.line_number, &a.pattern_name, &a.matched_text).cmp(&(
-                &b.file_path,
-                b.line_number,
-                &b.pattern_name,
-                &b.matched_text,
-            ))
+            (
+                &a.file_path,
+                a.line_number,
+                &a.pattern_name,
+                &a.matched_text,
+            )
+                .cmp(&(
+                    &b.file_path,
+                    b.line_number,
+                    &b.pattern_name,
+                    &b.matched_text,
+                ))
         });
     }
 
@@ -233,7 +243,14 @@ impl Scanner {
         ];
         let snapshot: Vec<(std::path::PathBuf, usize, String, String)> = findings
             .iter()
-            .map(|f| (f.file_path.clone(), f.line_number, f.pattern_name.clone(), f.matched_text.clone()))
+            .map(|f| {
+                (
+                    f.file_path.clone(),
+                    f.line_number,
+                    f.pattern_name.clone(),
+                    f.matched_text.clone(),
+                )
+            })
             .collect();
         findings.retain(|f| {
             let same_line = |other: &(std::path::PathBuf, usize, String, String)| {
@@ -264,8 +281,7 @@ impl Scanner {
             // one line) the multi-line rule; keep only the most specific.
             if let Some(rank) = Self::private_key_rank(&f.pattern_name) {
                 let outranked = snapshot.iter().any(|o| {
-                    same_line(o)
-                        && Self::private_key_rank(&o.2).is_some_and(|other| other < rank)
+                    same_line(o) && Self::private_key_rank(&o.2).is_some_and(|other| other < rank)
                 });
                 if outranked {
                     return false;
@@ -302,16 +318,16 @@ impl Scanner {
                 if entry.path().components().any(|c| c.as_os_str() == ".git") {
                     return false;
                 }
-                
+
                 // Enhanced file type filtering - ensure we scan important file types
                 let _path_str = entry.path().to_string_lossy().to_lowercase();
                 let is_scannable_file = self.is_scannable_file_type(entry.path());
-                
+
                 // Apply context filtering only if file type is scannable
                 if !is_scannable_file {
                     return false;
                 }
-                
+
                 !self.context_filter.should_skip_path(entry.path())
             })
             .map(|entry| entry.path().to_path_buf())
@@ -336,68 +352,128 @@ impl Scanner {
     /// Enhanced file type filtering to ensure we scan all relevant files
     fn is_scannable_file_type(&self, path: &Path) -> bool {
         let path_str = path.to_string_lossy().to_lowercase();
-        
+
         // Always scan text-based files regardless of extension
         let text_extensions = [
-            ".txt", ".md", ".json", ".yaml", ".yml", ".xml", ".ini", ".cfg", ".conf",
-            ".env", ".properties", ".toml", ".log", ".sql", ".sh", ".bat", ".ps1",
-            ".js", ".jsx", ".ts", ".tsx", ".py", ".rb", ".php", ".java", ".cs", ".go",
-            ".rs", ".c", ".cpp", ".h", ".hpp", ".swift", ".kt", ".scala", ".clj",
-            ".html", ".css", ".scss", ".less", ".vue", ".svelte", ".dockerfile",
-            ".pem", ".key", ".crt", ".cer", ".p12", ".pfx", ".jks"
+            ".txt",
+            ".md",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".xml",
+            ".ini",
+            ".cfg",
+            ".conf",
+            ".env",
+            ".properties",
+            ".toml",
+            ".log",
+            ".sql",
+            ".sh",
+            ".bat",
+            ".ps1",
+            ".js",
+            ".jsx",
+            ".ts",
+            ".tsx",
+            ".py",
+            ".rb",
+            ".php",
+            ".java",
+            ".cs",
+            ".go",
+            ".rs",
+            ".c",
+            ".cpp",
+            ".h",
+            ".hpp",
+            ".swift",
+            ".kt",
+            ".scala",
+            ".clj",
+            ".html",
+            ".css",
+            ".scss",
+            ".less",
+            ".vue",
+            ".svelte",
+            ".dockerfile",
+            ".pem",
+            ".key",
+            ".crt",
+            ".cer",
+            ".p12",
+            ".pfx",
+            ".jks",
         ];
-        
+
         // Check for known text extensions
         for ext in &text_extensions {
             if path_str.ends_with(ext) {
                 return true;
             }
         }
-        
+
         // Handle files without extensions - check if they're likely text files
         if let Some(filename) = path.file_name() {
             let filename_str = filename.to_string_lossy().to_lowercase();
-            
+
             // Common config files without extensions
             let config_files = [
-                "dockerfile", "makefile", "rakefile", "gemfile", "procfile",
-                "vagrantfile", "gruntfile", "gulpfile", "webpack", "babel",
-                ".gitignore", ".dockerignore", ".env", ".envrc", ".bashrc",
-                ".zshrc", ".profile", ".vimrc", ".tmux", "config", "settings"
+                "dockerfile",
+                "makefile",
+                "rakefile",
+                "gemfile",
+                "procfile",
+                "vagrantfile",
+                "gruntfile",
+                "gulpfile",
+                "webpack",
+                "babel",
+                ".gitignore",
+                ".dockerignore",
+                ".env",
+                ".envrc",
+                ".bashrc",
+                ".zshrc",
+                ".profile",
+                ".vimrc",
+                ".tmux",
+                "config",
+                "settings",
             ];
-            
+
             for config in &config_files {
                 if filename_str == *config || filename_str.contains(config) {
                     return true;
                 }
             }
-            
+
             // If no extension, try to detect if it's a text file by reading first few bytes
             if !filename_str.contains('.') {
                 return self.is_likely_text_file(path);
             }
         }
-        
+
         // Skip binary files
         let binary_extensions = [
-            ".exe", ".dll", ".so", ".dylib", ".a", ".lib", ".o", ".obj",
-            ".zip", ".tar", ".gz", ".7z", ".rar", ".jar", ".war", ".ear",
-            ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".ico", ".tiff",
-            ".mp3", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".wav", ".ogg",
-            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-            ".bin", ".dat", ".db", ".sqlite", ".sqlite3", ".mdb", ".accdb"
+            ".exe", ".dll", ".so", ".dylib", ".a", ".lib", ".o", ".obj", ".zip", ".tar", ".gz",
+            ".7z", ".rar", ".jar", ".war", ".ear", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg",
+            ".ico", ".tiff", ".mp3", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".wav", ".ogg",
+            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".bin", ".dat", ".db",
+            ".sqlite", ".sqlite3", ".mdb", ".accdb",
         ];
-        
+
         for ext in &binary_extensions {
             if path_str.ends_with(ext) {
                 return false;
             }
         }
-        
+
         // Default to scanning unknown files
         true
     }
-    
+
     /// Detect if a file without extension is likely a text file
     fn is_likely_text_file(&self, path: &Path) -> bool {
         match std::fs::File::open(path) {
@@ -406,16 +482,17 @@ impl Scanner {
                 match file.read(&mut buffer) {
                     Ok(bytes_read) if bytes_read > 0 => {
                         // Check if the first 512 bytes are mostly printable ASCII/UTF-8
-                        let text_bytes = buffer[..bytes_read].iter()
+                        let text_bytes = buffer[..bytes_read]
+                            .iter()
                             .filter(|&&b| b.is_ascii_graphic() || b.is_ascii_whitespace())
                             .count();
                         let ratio = text_bytes as f32 / bytes_read as f32;
                         ratio > 0.7 // If more than 70% are text characters, consider it text
                     }
-                    _ => false
+                    _ => false,
                 }
             }
-            Err(_) => false
+            Err(_) => false,
         }
     }
 
@@ -469,7 +546,14 @@ impl Scanner {
                 }
             }
             let line = String::from_utf8_lossy(&raw);
-            Self::scan_line(&line, line_number, file_path, patterns, context_filter, &mut findings);
+            Self::scan_line(
+                &line,
+                line_number,
+                file_path,
+                patterns,
+                context_filter,
+                &mut findings,
+            );
         }
 
         Ok(findings)
@@ -578,9 +662,14 @@ impl Scanner {
         // In a real implementation, this would return (current_mb, peak_mb)
         None
     }
-    
+
     /// Static version of entropy filtering for use in parallel processing
-    fn should_include_by_entropy_static(pattern_name: &str, matched_text: &str, entropy: f64, line: &str) -> bool {
+    fn should_include_by_entropy_static(
+        pattern_name: &str,
+        matched_text: &str,
+        entropy: f64,
+        line: &str,
+    ) -> bool {
         // Format-exact credentials (AKIA…, ghp_…, AIza…, secret_access_key=…) are
         // reported regardless of entropy: the format is the signal, and real keys
         // can be low-entropy (e.g. mostly-numeric AWS key IDs).
@@ -591,23 +680,41 @@ impl Scanner {
         // Pattern-specific entropy thresholds
         let entropy_threshold = match pattern_name {
             // High-entropy patterns that should always be included
-            "AWS Access Key" | "AWS Access Key ID" | "GitHub Token" | "Google API Key" 
-            | "OpenAI API Key" | "Stripe API Key" | "SendGrid API Key" | "Slack Token" 
-            | "Twilio API Key" | "Mailgun API Key" | "Firebase API Key" | "DigitalOcean Token"
-            | "Discord Token" | "Shopify Token" | "GitLab Token"
-            | "GitHub Fine-Grained PAT" | "Anthropic API Key" | "OpenAI Project Key"
-            | "Hugging Face Token" | "npm Access Token" | "PyPI Upload Token"
-            | "Slack App Token" | "Stripe Restricted Key" => 2.5,
-            
+            "AWS Access Key"
+            | "AWS Access Key ID"
+            | "GitHub Token"
+            | "Google API Key"
+            | "OpenAI API Key"
+            | "Stripe API Key"
+            | "SendGrid API Key"
+            | "Slack Token"
+            | "Twilio API Key"
+            | "Mailgun API Key"
+            | "Firebase API Key"
+            | "DigitalOcean Token"
+            | "Discord Token"
+            | "Shopify Token"
+            | "GitLab Token"
+            | "GitHub Fine-Grained PAT"
+            | "Anthropic API Key"
+            | "OpenAI Project Key"
+            | "Hugging Face Token"
+            | "npm Access Token"
+            | "PyPI Upload Token"
+            | "Slack App Token"
+            | "Stripe Restricted Key" => 2.5,
+
             // JWT tokens should have high entropy but allow some variation
             "JWT Token" => 3.0,
-            
+
             // Database URLs and connection strings can have mixed entropy
-            "PostgreSQL URL" | "MySQL URL" | "MongoDB URL" | "Redis URL" 
-            | "Connection String" | "Database URL" => 2.0,
-            
+            "PostgreSQL URL" | "MySQL URL" | "MongoDB URL" | "Redis URL" | "Connection String"
+            | "Database URL" => 2.0,
+
             // Password patterns need context-aware filtering
-            "Password in JSON" | "Password in YAML" | "Password Environment Variable" 
+            "Password in JSON"
+            | "Password in YAML"
+            | "Password Environment Variable"
             | "Password in URL" => {
                 // Check if it looks like a real password vs test data
                 if Self::looks_like_real_password(matched_text, line) {
@@ -615,27 +722,41 @@ impl Scanner {
                 } else {
                     4.0 // Higher threshold to filter test data
                 }
-            },
-            
+            }
+
             // Generic secrets need higher entropy to avoid noise
             "Generic Secret" | "Generic OAuth Secret" | "Generic Client ID" => 3.0,
-            
+
             // Private keys - pattern matching is usually sufficient
-            "RSA Private Key" | "EC Private Key" | "PGP Private Key" | "SSH Private Key" 
-            | "Generic Private Key" | "Multi-line Private Key" => 1.0,
-            
+            "RSA Private Key"
+            | "EC Private Key"
+            | "PGP Private Key"
+            | "SSH Private Key"
+            | "Generic Private Key"
+            | "Multi-line Private Key" => 1.0,
+
             // Azure and cloud provider patterns
             "Azure Tenant ID" | "Azure Client Secret" => 2.5,
             "PayPal Client ID" | "PayPal Secret" => 2.5,
-            
+
             // A structural marker, not a random string.
             "GCP Service Account" => 0.0,
 
             // Prefix- or provider-anchored formats: the shape is the signal.
-            "Azure Storage Account Key" | "Databricks Token" | "Supabase Access Token"
-            | "Telegram Bot Token" | "Postman API Key" | "Linear API Key" | "Notion Token"
-            | "Doppler Token" | "Docker Hub Token" | "Grafana Service Account Token"
-            | "Age Secret Key" | "Datadog API Key" | "Cloudflare API Token" | "Vercel Token" => 2.0,
+            "Azure Storage Account Key"
+            | "Databricks Token"
+            | "Supabase Access Token"
+            | "Telegram Bot Token"
+            | "Postman API Key"
+            | "Linear API Key"
+            | "Notion Token"
+            | "Doppler Token"
+            | "Docker Hub Token"
+            | "Grafana Service Account Token"
+            | "Age Secret Key"
+            | "Datadog API Key"
+            | "Cloudflare API Token"
+            | "Vercel Token" => 2.0,
 
             // Built-in rules without a specific threshold.
             _ if crate::patterns::is_builtin_rule(pattern_name) => 3.0,
@@ -644,122 +765,175 @@ impl Scanner {
             // strings, so every match is reported regardless of entropy.
             _ => 0.0,
         };
-        
+
         // Always include if entropy meets threshold
         if entropy >= entropy_threshold {
             return true;
         }
-        
+
         // Additional context checks for borderline cases
         Self::has_strong_context_indicators(pattern_name, matched_text, line)
     }
-    
+
     /// Check if a password looks real based on context and structure
     fn looks_like_real_password(password: &str, line: &str) -> bool {
         let line_lower = line.to_lowercase();
         let password_lower = password.to_lowercase();
-        
+
         // Skip obvious test passwords
         let test_indicators = [
-            "test", "dummy", "fake", "example", "sample", "placeholder",
-            "password123", "secret123", "changeme", "default", "admin"
+            "test",
+            "dummy",
+            "fake",
+            "example",
+            "sample",
+            "placeholder",
+            "password123",
+            "secret123",
+            "changeme",
+            "default",
+            "admin",
         ];
-        
+
         for indicator in &test_indicators {
             if password_lower.contains(indicator) || line_lower.contains(indicator) {
                 return false;
             }
         }
-        
+
         // Look for production environment indicators
         let prod_indicators = [
-            "prod", "production", "live", "staging", "config", "env",
-            "secret", "password", "key", "auth", "token"
+            "prod",
+            "production",
+            "live",
+            "staging",
+            "config",
+            "env",
+            "secret",
+            "password",
+            "key",
+            "auth",
+            "token",
         ];
-        
-        let has_prod_context = prod_indicators.iter().any(|&indicator| {
-            line_lower.contains(indicator) && !line_lower.contains("test")
-        });
-        
+
+        let has_prod_context = prod_indicators
+            .iter()
+            .any(|&indicator| line_lower.contains(indicator) && !line_lower.contains("test"));
+
         // Check password complexity
-        let has_mixed_case = password.chars().any(char::is_uppercase) && password.chars().any(char::is_lowercase);
+        let has_mixed_case =
+            password.chars().any(char::is_uppercase) && password.chars().any(char::is_lowercase);
         let has_numbers = password.chars().any(char::is_numeric);
         let has_special = password.chars().any(|c| !c.is_alphanumeric());
         let is_long_enough = password.len() >= 8;
-        
+
         // Consider it real if it has production context or decent complexity
         has_prod_context || (is_long_enough && (has_mixed_case || has_numbers || has_special))
     }
-    
+
     /// Check for strong context indicators that suggest a real secret
     fn has_strong_context_indicators(pattern_name: &str, matched_text: &str, line: &str) -> bool {
         let line_lower = line.to_lowercase();
-        
+
         // Strong positive indicators
         let positive_indicators = [
-            "production", "prod", "live", "staging", "config", "env",
-            "secret", "private", "credential", "auth", "api", "token",
-            "database", "db", "server", "host", "endpoint"
+            "production",
+            "prod",
+            "live",
+            "staging",
+            "config",
+            "env",
+            "secret",
+            "private",
+            "credential",
+            "auth",
+            "api",
+            "token",
+            "database",
+            "db",
+            "server",
+            "host",
+            "endpoint",
         ];
-        
+
         // Strong negative indicators (test/example context)
         let negative_indicators = [
-            "test", "spec", "example", "sample", "dummy", "fake",
-            "placeholder", "mock", "fixture", "demo"
+            "test",
+            "spec",
+            "example",
+            "sample",
+            "dummy",
+            "fake",
+            "placeholder",
+            "mock",
+            "fixture",
+            "demo",
         ];
-        
+
         // Check for negative indicators first
         for indicator in &negative_indicators {
             if line_lower.contains(indicator) {
                 return false;
             }
         }
-        
+
         // Check for positive indicators
-        let has_positive = positive_indicators.iter().any(|&indicator| {
-            line_lower.contains(indicator)
-        });
-        
+        let has_positive = positive_indicators
+            .iter()
+            .any(|&indicator| line_lower.contains(indicator));
+
         if has_positive {
             return true;
         }
-        
+
         // Pattern-specific context checks
         match pattern_name {
             "GitHub OAuth" => {
                 // GitHub OAuth tokens are 40 char hex strings, but need to be in right context
-                matched_text.len() == 40 && matched_text.chars().all(|c| c.is_ascii_hexdigit())
-                    && (line_lower.contains("github") || line_lower.contains("oauth") || line_lower.contains("token"))
-            },
+                matched_text.len() == 40
+                    && matched_text.chars().all(|c| c.is_ascii_hexdigit())
+                    && (line_lower.contains("github")
+                        || line_lower.contains("oauth")
+                        || line_lower.contains("token"))
+            }
             "Azure Tenant ID" => {
                 // UUID format in Azure context
-                line_lower.contains("azure") || line_lower.contains("tenant") || line_lower.contains("directory")
-            },
+                line_lower.contains("azure")
+                    || line_lower.contains("tenant")
+                    || line_lower.contains("directory")
+            }
             "Heroku API Key" => {
                 // UUID format in Heroku context
-                line_lower.contains("heroku") || line_lower.contains("app") || line_lower.contains("dyno")
-            },
+                line_lower.contains("heroku")
+                    || line_lower.contains("app")
+                    || line_lower.contains("dyno")
+            }
             _ => false,
         }
     }
-    
+
     /// Static version of obfuscated secret analysis
-    fn analyze_obfuscated_secrets_static(line: &str, line_number: usize, file_path: &Path, context_filter: &ContextFilter) -> Vec<Finding> {
+    fn analyze_obfuscated_secrets_static(
+        line: &str,
+        line_number: usize,
+        file_path: &Path,
+        context_filter: &ContextFilter,
+    ) -> Vec<Finding> {
         let mut findings = Vec::new();
-        
+
         // Analyze suspicious base64 strings
         let base64_regex = &*OBFUSCATED_BASE64;
         for cap in base64_regex.captures_iter(line) {
             if let Some(b64_match) = cap.get(1) {
                 let b64_string = b64_match.as_str();
-                
+
                 if is_suspicious_base64(b64_string, line) {
                     let decoded_secrets = analyze_base64_for_secrets(b64_string);
                     for (pattern_name, decoded_value) in decoded_secrets {
                         // Apply context filtering
                         if !context_filter.should_skip_line(line, &decoded_value) {
                             let entropy = shannon_entropy(b64_string);
-                            
+
                             findings.push(Finding {
                                 file_path: file_path.to_path_buf(),
                                 line_number,
@@ -773,20 +947,20 @@ impl Scanner {
                 }
             }
         }
-        
+
         // Analyze suspicious hex strings
         let hex_regex = &*OBFUSCATED_HEX;
         for cap in hex_regex.captures_iter(line) {
             if let Some(hex_match) = cap.get(1) {
                 let hex_string = hex_match.as_str();
-                
+
                 if is_suspicious_hex(hex_string, line) {
                     let decoded_secrets = analyze_hex_for_secrets(hex_string);
                     for (pattern_name, decoded_value) in decoded_secrets {
                         // Apply context filtering
                         if !context_filter.should_skip_line(line, &decoded_value) {
                             let entropy = shannon_entropy(hex_string);
-                            
+
                             findings.push(Finding {
                                 file_path: file_path.to_path_buf(),
                                 line_number,
@@ -800,43 +974,46 @@ impl Scanner {
                 }
             }
         }
-        
+
         // Analyze URL encoded strings
         let url_encoded_regex = &*OBFUSCATED_URL_ENCODED;
         for cap in url_encoded_regex.captures_iter(line) {
             if let Some(url_match) = cap.get(1) {
                 let url_string = url_match.as_str();
-                
+
                 let decoded_secrets = analyze_url_encoded_for_secrets(url_string);
                 for (pattern_name, decoded_value) in decoded_secrets {
                     // Apply context filtering
                     if !context_filter.should_skip_line(line, &decoded_value) {
                         let entropy = shannon_entropy(url_string);
-                        
+
                         findings.push(Finding {
                             file_path: file_path.to_path_buf(),
                             line_number,
                             line_content: line.to_string(),
                             pattern_name,
-                            matched_text: format!("{} (url-encoded: {})", decoded_value, url_string),
+                            matched_text: format!(
+                                "{} (url-encoded: {})",
+                                decoded_value, url_string
+                            ),
                             entropy: Some(entropy),
                         });
                     }
                 }
             }
         }
-        
+
         // Analyze character arrays
         let char_array_regex = &*OBFUSCATED_CHAR_ARRAY;
         for mat in char_array_regex.find_iter(line) {
             let array_string = mat.as_str();
-            
+
             let decoded_secrets = analyze_character_array_for_secrets(array_string);
             for (pattern_name, decoded_value) in decoded_secrets {
                 // Apply context filtering
                 if !context_filter.should_skip_line(line, &decoded_value) {
                     let entropy = shannon_entropy(array_string);
-                    
+
                     findings.push(Finding {
                         file_path: file_path.to_path_buf(),
                         line_number,
@@ -848,7 +1025,7 @@ impl Scanner {
                 }
             }
         }
-        
+
         findings
     }
 }

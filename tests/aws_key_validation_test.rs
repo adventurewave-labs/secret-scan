@@ -1,4 +1,4 @@
-use secretscan::{Scanner, get_all_patterns};
+use secretscan::Scanner;
 use std::fs;
 use tempfile::TempDir;
 
@@ -6,7 +6,7 @@ use tempfile::TempDir;
 fn test_aws_access_key_format_validation() {
     let temp_dir = TempDir::new().unwrap();
     let temp_path = temp_dir.path();
-    
+
     // Test various AWS access key formats and edge cases
     let test_content = r#"
 // Valid AWS Access Keys (should be detected)
@@ -39,51 +39,60 @@ const NOT_AWS_1: &str = "GITHUB_TOKEN_AKIATEST";
 const NOT_AWS_2: &str = "This AKIA is not a key";
 const NOT_AWS_3: &str = "AKIA"; // Just the prefix
 "#;
-    
+
     fs::write(temp_path.join("aws_test.rs"), test_content).unwrap();
-    
+
     let scanner = Scanner::new().unwrap();
     let findings = scanner.scan_directory(temp_path).unwrap();
-    
+
     // Count AWS access key findings
-    let aws_access_findings: Vec<_> = findings.iter()
+    let aws_access_findings: Vec<_> = findings
+        .iter()
         .filter(|f| f.pattern_name.contains("AWS") && f.pattern_name.contains("Access"))
         .collect();
-    
-    // Count AWS secret key findings  
-    let aws_secret_findings: Vec<_> = findings.iter()
+
+    // Count AWS secret key findings
+    let aws_secret_findings: Vec<_> = findings
+        .iter()
         .filter(|f| f.pattern_name.contains("AWS") && f.pattern_name.contains("Secret"))
         .collect();
-    
+
     println!("AWS Access Key findings: {}", aws_access_findings.len());
     for finding in &aws_access_findings {
-        println!("  - {} (line {}): {}", finding.pattern_name, finding.line_number, finding.matched_text);
+        println!(
+            "  - {} (line {}): {}",
+            finding.pattern_name, finding.line_number, finding.matched_text
+        );
     }
-    
+
     println!("AWS Secret Key findings: {}", aws_secret_findings.len());
     for finding in &aws_secret_findings {
-        println!("  - {} (line {}): {}", finding.pattern_name, finding.line_number, finding.matched_text);
+        println!(
+            "  - {} (line {}): {}",
+            finding.pattern_name, finding.line_number, finding.matched_text
+        );
     }
-    
+
     // Should find exactly 4 valid AWS access keys
     assert_eq!(
-        aws_access_findings.len(), 
+        aws_access_findings.len(),
         8, // 4 from consts + 4 from config lines
         "Should find exactly 8 AWS access key instances"
     );
-    
+
     // Should find 2 AWS secret keys
     assert_eq!(
         aws_secret_findings.len(),
         2,
         "Should find exactly 2 AWS secret keys"
     );
-    
+
     // Verify the valid keys are found
-    let found_keys: Vec<&str> = aws_access_findings.iter()
+    let found_keys: Vec<&str> = aws_access_findings
+        .iter()
         .map(|f| f.matched_text.as_str())
         .collect();
-    
+
     assert!(found_keys.contains(&"AKIAIOSFODNN7EXAMPLE"));
     assert!(found_keys.contains(&"AKIA123456789ABCDEF0"));
     assert!(found_keys.contains(&"AKIAZZZZZZZZZZZZZZZZ"));
@@ -94,7 +103,7 @@ const NOT_AWS_3: &str = "AKIA"; // Just the prefix
 fn test_aws_key_length_validation() {
     let temp_dir = TempDir::new().unwrap();
     let temp_path = temp_dir.path();
-    
+
     // Test AWS keys of different lengths
     let test_cases = vec![
         ("AKIA", false, "Too short - just prefix"),
@@ -108,23 +117,27 @@ fn test_aws_key_length_validation() {
         ("AKIA123456789ABCDEF01", false, "21 chars total - too long"),
         ("AKIA123456789ABCDEF012", false, "22 chars total - too long"),
     ];
-    
-    for (i, (key, should_match, description)) in test_cases.iter().enumerate() {
-        let content = format!("const TEST_KEY_{}: &str = \"{}\"; // {}", i, key, description);
+
+    for (i, (key, _should_match, description)) in test_cases.iter().enumerate() {
+        let content = format!(
+            "const TEST_KEY_{}: &str = \"{}\"; // {}",
+            i, key, description
+        );
         fs::write(temp_path.join(format!("test_{}.rs", i)), content).unwrap();
     }
-    
+
     let scanner = Scanner::new().unwrap();
     let findings = scanner.scan_directory(temp_path).unwrap();
-    
-    let aws_findings: Vec<_> = findings.iter()
+
+    let aws_findings: Vec<_> = findings
+        .iter()
         .filter(|f| f.pattern_name.contains("AWS") && f.pattern_name.contains("Access"))
         .collect();
-    
+
     // Should find only the valid 20-character key
     assert_eq!(aws_findings.len(), 1, "Should find exactly 1 valid AWS key");
     assert_eq!(aws_findings[0].matched_text, "AKIA123456789ABCDEF0");
-    
+
     println!("✓ AWS key length validation passed");
 }
 
@@ -132,7 +145,7 @@ fn test_aws_key_length_validation() {
 fn test_aws_key_character_validation() {
     let temp_dir = TempDir::new().unwrap();
     let temp_path = temp_dir.path();
-    
+
     // Test AWS keys with different character sets
     let test_content = r#"
 // Valid character sets
@@ -147,38 +160,40 @@ const WITH_SPACES: &str = "AKIA 123 456 789 ABC";        // Contains spaces
 const WITH_HYPHEN: &str = "AKIA-123-456-789-ABC";        // Contains hyphens
 const WITH_UNDERSCORE: &str = "AKIA_123_456_789_ABC";    // Contains underscores
 "#;
-    
+
     fs::write(temp_path.join("char_test.rs"), test_content).unwrap();
-    
-    let scanner = Scanner::new().unwrap();  
+
+    let scanner = Scanner::new().unwrap();
     let findings = scanner.scan_directory(temp_path).unwrap();
-    
-    let aws_findings: Vec<_> = findings.iter()
+
+    let aws_findings: Vec<_> = findings
+        .iter()
         .filter(|f| f.pattern_name.contains("AWS") && f.pattern_name.contains("Access"))
         .collect();
-    
+
     println!("Character validation findings:");
     for finding in &aws_findings {
         println!("  - {}", finding.matched_text);
     }
-    
+
     // Should find only the keys with valid character sets
     assert!(
-        aws_findings.len() >= 1 && aws_findings.len() <= 3,
+        !aws_findings.is_empty() && aws_findings.len() <= 3,
         "Should find 1-3 valid AWS keys with proper characters, found {}",
         aws_findings.len()
     );
-    
+
     // Verify no invalid character combinations are found
-    let found_texts: Vec<&str> = aws_findings.iter()
+    let found_texts: Vec<&str> = aws_findings
+        .iter()
         .map(|f| f.matched_text.as_str())
         .collect();
-    
+
     // These should not be found (contain invalid characters)
     assert!(!found_texts.contains(&"AKIAabcdefghijklmnop"));
     assert!(!found_texts.contains(&"AKIA123@#$%^&*()!@#$"));
     assert!(!found_texts.contains(&"AKIA 123 456 789 ABC"));
-    
+
     println!("✓ AWS key character validation passed");
 }
 
@@ -186,7 +201,7 @@ const WITH_UNDERSCORE: &str = "AKIA_123_456_789_ABC";    // Contains underscores
 fn test_aws_key_context_sensitivity() {
     let temp_dir = TempDir::new().unwrap();
     let temp_path = temp_dir.path();
-    
+
     // Test AWS keys in various contexts
     let test_content = r#"
 # Configuration file formats
@@ -231,44 +246,46 @@ aws s3 --access-key AKIANOTAREALKEYEXAMP ls s3://bucket
         .replace("__KEY_COMMIT__", &["AKIA", "ACCIDENTALCOMMIT"].concat())
         .replace("__KEY_DEBUG__", &["AKIA", "DEBUGGINGKEY1234"].concat())
         .replace("__KEY_DOC__", &["AKIA", "DOCUMENTATIONKEY"].concat());
-    
+
     fs::write(temp_path.join("context_test.conf"), test_content).unwrap();
-    
+
     let scanner = Scanner::new().unwrap();
     let findings = scanner.scan_directory(temp_path).unwrap();
-    
-    let aws_access_findings: Vec<_> = findings.iter()
+
+    let aws_access_findings: Vec<_> = findings
+        .iter()
         .filter(|f| f.pattern_name.contains("AWS") && f.pattern_name.contains("Access"))
         .collect();
-        
-    let aws_secret_findings: Vec<_> = findings.iter()
+
+    let aws_secret_findings: Vec<_> = findings
+        .iter()
         .filter(|f| f.pattern_name.contains("AWS") && f.pattern_name.contains("Secret"))
         .collect();
-    
+
     println!("Context sensitivity test results:");
     println!("AWS Access Keys found: {}", aws_access_findings.len());
     for finding in &aws_access_findings {
         println!("  Line {}: {}", finding.line_number, finding.matched_text);
     }
-    
-    println!("AWS Secret Keys found: {}", aws_secret_findings.len());  
+
+    println!("AWS Secret Keys found: {}", aws_secret_findings.len());
     for finding in &aws_secret_findings {
         println!("  Line {}: {}", finding.line_number, finding.matched_text);
     }
-    
+
     // Should find AWS keys in various contexts
     assert!(
         aws_access_findings.len() >= 8,
         "Should find at least 8 AWS access keys in different contexts, found {}",
         aws_access_findings.len()
     );
-    
+
     assert!(
         aws_secret_findings.len() >= 4,
         "Should find at least 4 AWS secret keys in different contexts, found {}",
         aws_secret_findings.len()
     );
-    
+
     println!("✓ AWS key context sensitivity test passed");
 }
 
@@ -276,7 +293,7 @@ aws s3 --access-key AKIANOTAREALKEYEXAMP ls s3://bucket
 fn test_aws_key_false_negative_prevention() {
     let temp_dir = TempDir::new().unwrap();
     let temp_path = temp_dir.path();
-    
+
     // Test edge cases that might cause false negatives
     let test_content = r#"
 // Keys that might be missed due to surrounding text
@@ -311,35 +328,37 @@ println!("Key: {}", "AKIAPRINTKEY12345678");
 let split_key = "AKIA" +
                 "SPLITKEY12345678";
 "#;
-    
+
     fs::write(temp_path.join("false_negative_test.rs"), test_content).unwrap();
-    
+
     let scanner = Scanner::new().unwrap();
     let findings = scanner.scan_directory(temp_path).unwrap();
-    
-    let aws_findings: Vec<_> = findings.iter()
+
+    let aws_findings: Vec<_> = findings
+        .iter()
         .filter(|f| f.pattern_name.contains("AWS") && f.pattern_name.contains("Access"))
         .collect();
-    
+
     println!("False negative prevention test results:");
     for finding in &aws_findings {
         println!("  Line {}: {}", finding.line_number, finding.matched_text);
     }
-    
+
     // Should find most of the keys (some edge cases like split strings might be missed)
     assert!(
         aws_findings.len() >= 8,
         "Should find at least 8 AWS keys to prevent false negatives, found {}",
         aws_findings.len()
     );
-    
+
     // Specific keys that should definitely be found
-    let found_texts: Vec<&str> = aws_findings.iter()
+    let found_texts: Vec<&str> = aws_findings
+        .iter()
         .map(|f| f.matched_text.as_str())
         .collect();
-    
+
     assert!(found_texts.contains(&"AKIABACKUPKEY1234567"));
     assert!(found_texts.contains(&"AKIAFALLBACKKEY12345"));
-    
+
     println!("✓ AWS key false negative prevention test passed");
 }

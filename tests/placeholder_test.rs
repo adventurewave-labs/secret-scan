@@ -40,13 +40,22 @@ client_secret = \"00000000000000000000000000000000\"
 #[test]
 fn real_looking_values_under_the_same_names_are_still_reported() {
     for (line, rule) in [
-        ("api_key = \"a1B2c3D4e5F6g7H8i9J0k1L2m3N4\"", "Generic Secret"),
-        ("password = \"Tr0ub4dor&3xQ9\"", "Password Environment Variable"),
+        (
+            "api_key = \"a1B2c3D4e5F6g7H8i9J0k1L2m3N4\"",
+            "Generic Secret",
+        ),
+        (
+            "password = \"Tr0ub4dor&3xQ9\"",
+            "Password Environment Variable",
+        ),
         (
             "client_secret = \"k9Lm2Nq7Rt4Vx8Zb3Cf6Hj1Pw5Sy0Ad2\"",
             "Generic OAuth Secret",
         ),
-        ("url = \"https://deploy:Xk29fLq8Wm@host.internal/path\"", "Password in URL"),
+        (
+            "url = \"https://deploy:Xk29fLq8Wm@host.internal/path\"",
+            "Password in URL",
+        ),
     ] {
         let findings = scan(&format!("{line}\n"));
         assert!(
@@ -62,5 +71,7 @@ fn format_exact_rules_report_even_example_values() {
     // The documented AWS example key has the exact format of a real key; it
     // is reported, and can be allowlisted in .secretscan.toml if unwanted.
     let findings = scan("key = \"AKIAIOSFODNN7EXAMPLE\"\n");
-    assert!(findings.iter().any(|f| f.pattern_name == "AWS Access Key ID"));
+    assert!(findings
+        .iter()
+        .any(|f| f.pattern_name == "AWS Access Key ID"));
 }
