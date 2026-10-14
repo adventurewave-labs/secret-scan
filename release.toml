@@ -24,11 +24,9 @@ tag-message = "Release version {{version}}"
 pre-release-replacements = [
   # Update version in title
   {file="README.md", search="# secretscan 🔍 v[0-9.]+", replace="# secretscan 🔍 v{{version}}"},
-  # Update download links
-  {file="README.md", search="secretscan-v[0-9.]+-x86_64", replace="secretscan-v{{version}}-x86_64"},
-  # Update any other version references
-  {file="README.md", search="secretscan/v[0-9.]+", replace="secretscan/v{{version}}"},
-  {file="README.md", search="secretscan [0-9.]+", replace="secretscan {{version}}"},
+  # (Pruned: the download-link and bare-version patterns no longer match any
+  # README text and would fail the release with min=1. Only patterns that
+  # match today are kept: the version header below and CITATION.cff.)
   # CITATION.cff version (src/main.rs now reads env!("CARGO_PKG_VERSION"), no longer needs a rewrite)
   {file="CITATION.cff", search="version: \"[0-9.]+\"", replace="version: \"{{version}}\""},
   # CHANGELOG release sections are maintained manually at release-prep time

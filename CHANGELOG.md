@@ -85,3 +85,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [0.1.0]: https://github.com/adventurewave-labs/secret-scan/releases/tag/v0.1.0
 [0.2.5]: https://github.com/adventurewave-labs/secret-scan/compare/v0.2.4...v0.2.5
+[Unreleased]: https://github.com/adventurewave-labs/secret-scan/compare/v0.2.5...HEAD
