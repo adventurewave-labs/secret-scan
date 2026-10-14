@@ -118,7 +118,7 @@ Options:
 ### Example Output
 
 ```bash
-$ secretscan test-repo/
+$ time secretscan test-repo/
 
 Warning: Found 17 potential secrets:
 
@@ -143,7 +143,7 @@ Severity: high
 Match: whsec_MOCK1234567890abcdefghijklmnopqrstuvwxyz
 Entropy: 5.3
 
-…14 more findings, sorted by file, line and rule
+# … 14 more findings omitted (sorted by file, line and rule) …
 
 17 secrets found:
 AWS Access Key ID: 2
@@ -158,7 +158,9 @@ Stripe Restricted Key: 1
 Suspicious Base64: 1
 Suspicious Hex: 1
 
-real    0m0.057s
+real	0m0.065s
+user	0m0.054s
+sys	0m0.010s
 ```
 
 ## 🎯 Detected Secret Types
@@ -343,7 +345,6 @@ No recall, precision, or F1 numbers are published here. An earlier version of th
 
 - **Obfuscation detection**: Base64, Hex, URL encoding, character arrays
 - **Smart filtering**: Production vs test environment awareness
-- **Entropy floor**: built-in rules skip values too low-entropy to be real credentials, so obviously-fake strings are not reported
 
 ### Detection Capabilities
 - ✅ **Production secrets**: Config files, environment variables, connection strings  

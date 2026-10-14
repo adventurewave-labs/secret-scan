@@ -47,4 +47,4 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.88.0
       - uses: Swatinem/rust-cache@v2
       - name: Check at the declared MSRV (lib and bins, the install surface)
-        run: cargo check --locked
+        run: cargo check --locked --all-features
