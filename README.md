@@ -358,7 +358,7 @@ No recall, precision, or F1 numbers are published here. An earlier version of th
 ### Obfuscation Detection
 secretscan detects secrets hidden behind common encodings:
 - Base64 encoded API keys: `api_key_b64 = "QUtJQUlPU0ZPRE5ON1RFU1RLRVk="`
-- Hex encoded secrets: `secret_hex = "414b4941494f53464f444e4e374158414d504c45"` (an AWS key ID, hex-encoded)
+- Hex encoded secrets: `secret_hex = "414b4941494f53464f444e4e374558414d504c45"` (an AWS key ID, hex-encoded)
 - Character arrays: `[65, 75, 73, 65, 73, 79, 83, 70, 79, 68, 78, 78, 55, 69, 88, 65, 77, 80, 76, 69]` → "AKIAIOSFODNN7EXAMPLE"
 - URL encoded DB URLs: `postgres%3A%2F%2Fuser%3Apass%40host`
 

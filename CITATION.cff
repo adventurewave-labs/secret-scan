@@ -5,7 +5,7 @@ title: "secretscan"
 version: "0.2.5"
 repository-code: "https://github.com/adventurewave-labs/secret-scan"
 license: "MIT"
-abstract: "Rust secret scanner CLI — 50 patterns, entropy analysis, Base64/hex obfuscation detection."
+abstract: "Rust secret scanner CLI — 73 rules, entropy analysis, Base64/hex obfuscation detection."
 authors:
   - name: "Secretscan Team"
     email: "support@secretscan.io"

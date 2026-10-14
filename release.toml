@@ -31,8 +31,7 @@ pre-release-replacements = [
   {file="README.md", search="secretscan [0-9.]+", replace="secretscan {{version}}"},
   # CITATION.cff version (src/main.rs now reads env!("CARGO_PKG_VERSION"), no longer needs a rewrite)
   {file="CITATION.cff", search="version: \"[0-9.]+\"", replace="version: \"{{version}}\""},
-  # Update CHANGELOG
-  {file="CHANGELOG.md", search="## \\[Unreleased\\]", replace="## [Unreleased]\n\n## [{{version}}] - {{date}}"},
+  # CHANGELOG release sections are maintained manually at release-prep time
 ]
 
 # Changelog generation would require git-cliff

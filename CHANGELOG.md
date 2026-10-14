@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - The per-rule summary in text output was listed in a different order on every run
+- `secretscan --version` reports the real package version; the 0.2.4 tarball had "0.2.1" hardcoded in `main.rs`
 - A file containing any invalid UTF-8 byte was skipped entirely; it is now scanned, with invalid bytes replaced
 - A single private key produced up to three findings (specific, generic and multi-line rules); it is now reported once under its most specific rule
 - Unlabelled PKCS#8 keys (`BEGIN PRIVATE KEY`) were reported as "RSA Private Key"; they are now "Generic Private Key"
@@ -83,4 +84,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Colored terminal output
 
 [0.1.0]: https://github.com/adventurewave-labs/secret-scan/releases/tag/v0.1.0
-- `secretscan --version` reports the real package version; the 0.2.4 tarball had "0.2.1" hardcoded in `main.rs`
+[0.2.5]: https://github.com/adventurewave-labs/secret-scan/compare/v0.2.4...v0.2.5
