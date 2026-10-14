@@ -4,8 +4,8 @@
 **/*.rs.bk
 *.pdb
 
-# Cargo
-Cargo.lock
+# Cargo.lock is committed on purpose: this is a binary crate,
+# so a locked dependency set keeps installs reproducible and the MSRV honest.
 
 # IDE
 .vscode/
