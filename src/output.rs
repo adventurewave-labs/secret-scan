@@ -164,7 +164,11 @@ pub fn redact_secret(secret: &str) -> String {
     let total = secret.chars().count();
     let keep = if total > 12 { 4 } else { 0 };
     let prefix: String = secret.chars().take(keep).collect();
-    format!("{}{}", prefix, "*".repeat(total.saturating_sub(keep).min(12)))
+    format!(
+        "{}{}",
+        prefix,
+        "*".repeat(total.saturating_sub(keep).min(12))
+    )
 }
 
 /// Replace every secret in the findings with its redacted form, in both the
@@ -196,7 +200,10 @@ pub fn redact_findings(findings: &mut [Finding]) {
 ///
 /// Secrets never appear in SARIF output: results carry the rule, location and
 /// a fingerprint, so the report is safe to upload as a CI artifact.
-pub fn format_as_sarif(findings: &[Finding], tool_version: &str) -> Result<String, serde_json::Error> {
+pub fn format_as_sarif(
+    findings: &[Finding],
+    tool_version: &str,
+) -> Result<String, serde_json::Error> {
     format_as_sarif_report(findings, tool_version, &[])
 }
 

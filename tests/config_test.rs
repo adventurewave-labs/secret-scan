@@ -88,17 +88,32 @@ fn disabled_rule_also_silences_its_decoded_variants() {
 fn mistakes_in_the_config_are_errors() {
     for (text, expected) in [
         ("[rules]\ndisable = [\"github-tokn\"]\n", "unknown rule id"),
-        ("[allowlist]\npaths = [\"(\"]\n", "invalid allowlist.paths regex"),
-        ("[allowlist]\nregexes = [\"[\"]\n", "invalid allowlist.regexes regex"),
+        (
+            "[allowlist]\npaths = [\"(\"]\n",
+            "invalid allowlist.paths regex",
+        ),
+        (
+            "[allowlist]\nregexes = [\"[\"]\n",
+            "invalid allowlist.regexes regex",
+        ),
         ("[allowlist]\npath = [\"x\"]\n", "unknown field"),
         ("[allowlists]\n", "unknown field"),
-        ("[[rules.custom]]\nname = \"GitHub Token\"\nregex = \"x\"\n", "clashes"),
-        ("[[rules.custom]]\nname = \"Mine\"\nregex = \"(\"\n", "invalid regex"),
+        (
+            "[[rules.custom]]\nname = \"GitHub Token\"\nregex = \"x\"\n",
+            "clashes",
+        ),
+        (
+            "[[rules.custom]]\nname = \"Mine\"\nregex = \"(\"\n",
+            "invalid regex",
+        ),
         (
             "[[rules.custom]]\nname = \"Mine\"\nregex = \"x\"\nseverity = \"urgent\"\n",
             "unknown severity",
         ),
-        ("[[rules.custom]]\nname = \" \"\nregex = \"x\"\n", "name is empty"),
+        (
+            "[[rules.custom]]\nname = \" \"\nregex = \"x\"\n",
+            "name is empty",
+        ),
         ("[[rules.custom]]\nname = \"Mine\"\n", "missing field"),
         (
             "[[rules.custom]]\nname = \"Mine\"\nregex = \"x\"\n\
@@ -136,10 +151,17 @@ fn discover_finds_the_file_in_the_scanned_directory() {
 fn cli_applies_a_discovered_config() {
     let dir = TempDir::new().unwrap();
     fs::create_dir(dir.path().join("vendor")).unwrap();
-    fs::write(dir.path().join("vendor/lib.txt"), format!("t = \"{}\"\n", token())).unwrap();
+    fs::write(
+        dir.path().join("vendor/lib.txt"),
+        format!("t = \"{}\"\n", token()),
+    )
+    .unwrap();
     fs::write(
         dir.path().join("app.txt"),
-        format!("t = \"{}\"\ninternal = \"acme_0123456789abcdef0123456789abcdef\"\n", token()),
+        format!(
+            "t = \"{}\"\ninternal = \"acme_0123456789abcdef0123456789abcdef\"\n",
+            token()
+        ),
     )
     .unwrap();
 
@@ -154,9 +176,17 @@ fn cli_applies_a_discovered_config() {
     )
     .unwrap();
     let configured = run(dir.path(), &[]);
-    assert_eq!(rules_reported(&configured), vec!["acme-token", "github-token"]);
+    assert_eq!(
+        rules_reported(&configured),
+        vec!["acme-token", "github-token"]
+    );
     let doc: serde_json::Value = serde_json::from_slice(&configured.stdout).unwrap();
-    let acme = doc.as_array().unwrap().iter().find(|i| i["rule_id"] == "acme-token").unwrap();
+    let acme = doc
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["rule_id"] == "acme-token")
+        .unwrap();
     assert_eq!(acme["severity"], "critical");
     assert_eq!(acme["file_path"], "./app.txt");
 
@@ -166,7 +196,10 @@ fn cli_applies_a_discovered_config() {
 
     // --no-config ignores the file.
     let ignored = run(dir.path(), &["--no-config"]);
-    assert_eq!(rules_reported(&ignored), vec!["github-token", "github-token"]);
+    assert_eq!(
+        rules_reported(&ignored),
+        vec!["github-token", "github-token"]
+    );
 }
 
 #[test]
@@ -197,7 +230,10 @@ fn cli_config_file_is_not_scanned_and_disable_works() {
     // the scan.
     fs::write(
         dir.path().join("custom.toml"),
-        format!("# known: \"{}\"\n[rules]\ndisable = [\"slack-token\"]\n", token()),
+        format!(
+            "# known: \"{}\"\n[rules]\ndisable = [\"slack-token\"]\n",
+            token()
+        ),
     )
     .unwrap();
     let out = run(dir.path(), &["--config", "custom.toml"]);
@@ -209,7 +245,11 @@ fn cli_config_file_is_not_scanned_and_disable_works() {
 fn cli_rejects_a_bad_or_missing_config() {
     let dir = TempDir::new().unwrap();
     fs::write(dir.path().join("app.txt"), "x = 1\n").unwrap();
-    fs::write(dir.path().join(".secretscan.toml"), "[rules]\ndisable = [\"nope\"]\n").unwrap();
+    fs::write(
+        dir.path().join(".secretscan.toml"),
+        "[rules]\ndisable = [\"nope\"]\n",
+    )
+    .unwrap();
     let bad = run(dir.path(), &[]);
     assert_eq!(bad.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&bad.stderr).contains("unknown rule id"));

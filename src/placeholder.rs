@@ -52,8 +52,20 @@ const STOPWORDS: [&str; 22] = [
 
 /// Whole values that are never a secret.
 const NON_VALUES: [&str; 14] = [
-    "null", "none", "nil", "true", "false", "undefined", "empty", "password", "passwd", "secret",
-    "token", "string", "value", "test",
+    "null",
+    "none",
+    "nil",
+    "true",
+    "false",
+    "undefined",
+    "empty",
+    "password",
+    "passwd",
+    "secret",
+    "token",
+    "string",
+    "value",
+    "test",
 ];
 
 /// Whether placeholder filtering applies to findings from `rule_name`.

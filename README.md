@@ -1,6 +1,6 @@
 <p align="center"><img src="assets/banner.svg" alt="secret-scan — animated banner" width="100%"></p>
 
-# secretscan 🔍 v0.2.1
+# secretscan 🔍 v0.2.5
 
 [![Crates.io](https://img.shields.io/crates/v/secretscan.svg)](https://crates.io/crates/secretscan)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -25,7 +25,7 @@ A fast secret scanner for your codebase. secretscan helps you find and remediate
 - **📊 Multiple Formats**: JSON, SARIF 2.1.0 and text output formats
 - **🙈 Redaction**: `--redact` masks secret values so reports are safe in CI logs
 - **🔕 Inline Suppression**: `secretscan:allow` (or `gitleaks:allow`) on a line silences it
-- **🚫 GitIgnore Support**: Respects `.gitignore` patterns automatically
+- **🚫 GitIgnore Support**: Respects `.gitignore` patterns automatically when scanning inside a git repository
 - **🔍 Advanced Detection**: Supports obfuscated secrets (Base64, Hex, Character Arrays)
 
 ## 🛠️ Installation
@@ -46,7 +46,7 @@ cargo install --path .
 
 ### Requirements
 
-- Rust 1.70.0 or higher
+- Rust 1.88.0 or higher — the dependency floor, enforced by `rust-version` in Cargo.toml
 - Git (for respecting `.gitignore` files)
 
 ## 🚀 Quick Start
@@ -118,44 +118,49 @@ Options:
 ### Example Output
 
 ```bash
-$ secretscan test-repo/
+$ time secretscan test-repo/
 
-Warning: Found 34 potential secrets:
-
-File: test-repo/test/test_secrets.py
-line 6: AWS_KEY = "AKIAIOSFODNN7TESTKEY"
-Pattern: AWS Access Key
-Match: AKIAIOSFODNN7TESTKEY
-Entropy: 3.5
+Warning: Found 17 potential secrets:
 
 File: test-repo/config/production.yml
-line 9: access_key_id: AKIAIOSFODNN7PRODKEY
-Pattern: AWS Access Key
-Match: AKIAIOSFODNN7PRODKEY
-Entropy: 3.6
+line 3: publishable_key: pk_test_MOCK1234567890abcdefghijklmnopqrstuvwxyz
+Pattern: Stripe API Key
+Severity: high
+Match: pk_test_MOCK1234567890abcdefghijklmnopqrstuvwxyz
+Entropy: 5.3
 
-File: test-repo/src/config.js
-line 8: GITHUB_TOKEN: "ghp_1234567890abcdefghijklmnopqrstuvwxyz",
-Pattern: GitHub Token
-Match: ghp_1234567890abcdefghijklmnopqrstuvwxyz
-Entropy: 5.2
+File: test-repo/config/production.yml
+line 4: secret_key: sk_test_MOCK1234567890abcdefghijklmnopqrstuvwxyz
+Pattern: Stripe API Key
+Severity: high
+Match: sk_test_MOCK1234567890abcdefghijklmnopqrstuvwxyz
+Entropy: 5.3
 
-File: test-repo/src/config.js
-line 11: GOOGLE_API_KEY: "AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI",
-Pattern: Google API Key
-Match: AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI
-Entropy: 4.7
+File: test-repo/config/production.yml
+line 5: webhook_secret: whsec_MOCK1234567890abcdefghijklmnopqrstuvwxyz
+Pattern: Stripe Restricted Key
+Severity: high
+Match: whsec_MOCK1234567890abcdefghijklmnopqrstuvwxyz
+Entropy: 5.3
 
-34 secrets found:
-AWS Access Key: 4
-Google API Key: 4
-GitHub Token: 3
-PostgreSQL URL: 1
-(and 22 more...)
+# … 14 more findings omitted (sorted by file, line and rule) …
 
-real    0m0.005s
-user    0m0.001s
-sys     0m0.003s
+17 secrets found:
+AWS Access Key ID: 2
+AWS Secret Key: 1
+Database URL: 1
+Firebase API Key: 1
+GitHub Token: 2
+Google API Key: 3
+PostgreSQL URL: 2
+Stripe API Key: 2
+Stripe Restricted Key: 1
+Suspicious Base64: 1
+Suspicious Hex: 1
+
+real	0m0.065s
+user	0m0.054s
+sys	0m0.010s
 ```
 
 ## 🎯 Detected Secret Types
@@ -347,16 +352,20 @@ No recall, precision, or F1 numbers are published here. An earlier version of th
 - ✅ **Cloud providers**: AWS, Azure, GCP credentials and session tokens
 - ✅ **Payment APIs**: Stripe, PayPal, Square with all key variants
 - ✅ **Communication**: SendGrid, Slack, Twilio, Discord tokens
-- ✅ **Multiple formats**: 50+ file types including .txt, config files
-- ✅ **Advanced patterns**: 50 comprehensive secret patterns
+- ✅ **Multiple formats**: any text file — source, configs, dot-env, key files
+- ✅ **Advanced patterns**: 73 built-in rules
 - ❌ **Intelligently filtered**: Test fixtures, examples, dummy data
 
 ### Obfuscation Detection
 secretscan detects secrets hidden behind common encodings:
 - Base64 encoded API keys: `api_key_b64 = "QUtJQUlPU0ZPRE5ON1RFU1RLRVk="`
-- Hex encoded secrets: `secret_hex = "736b2d7465737431323334"`  
-- Character arrays: `[115, 107, 45, 116, 101, 115, 116]` → "sk-test"
+- Hex encoded secrets: `secret_hex = "414b4941494f53464f444e4e374558414d504c45"` (an AWS key ID, hex-encoded)
+- Character arrays: `[65, 75, 73, 65, 73, 79, 83, 70, 79, 68, 78, 78, 55, 69, 88, 65, 77, 80, 76, 69]` → "AKIAIOSFODNN7EXAMPLE"
 - URL encoded DB URLs: `postgres%3A%2F%2Fuser%3Apass%40host`
+
+Thresholds: hex values are reported from 32 characters when assigned to a
+secret-named variable (40 for any quoted string), and character arrays need
+at least 16 numbers. The examples above are sized to clear those thresholds.
 
 ## 🔧 Comparison with Other Tools
 
@@ -364,10 +373,10 @@ Capability comparison against other secret-scanning tools. Performance figures (
 
 | Feature | secretscan | truffleHog | git-secrets | detect-secrets |
 |---------|------------|------------|-------------|----------------|
-| Language | Rust | Python | Bash | Python |
+| Language | Rust | Go | Bash | Python |
 | GitIgnore Support | ✅ Built-in | ✅ Yes | ❌ No | ✅ Yes |
 | Entropy Analysis | ✅ Yes | ✅ Yes | ❌ No | ✅ Yes |
-| Parallel Processing | ✅ Native | ❌ No | ❌ No | ❌ No |
+| Parallel Processing | ✅ Native | ✅ Yes | ❌ No | ❌ No |
 | JSON Output | ✅ Yes | ✅ Yes | ❌ No | ✅ Yes |
 | Test File Filtering | ✅ Yes | ❌ No | ❌ No | ✅ Yes |
 | Obfuscation Detection | ✅ Advanced | ❌ No | ❌ No | ❌ No |

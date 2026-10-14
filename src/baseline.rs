@@ -93,7 +93,11 @@ impl Baseline {
 
     /// Remove findings recorded in this baseline; returns how many were removed.
     pub fn suppress(&self, findings: &mut Vec<Finding>) -> usize {
-        let known: BTreeSet<&str> = self.findings.iter().map(|e| e.fingerprint.as_str()).collect();
+        let known: BTreeSet<&str> = self
+            .findings
+            .iter()
+            .map(|e| e.fingerprint.as_str())
+            .collect();
         let before = findings.len();
         findings.retain(|finding| !known.contains(fingerprint(finding).as_str()));
         before - findings.len()

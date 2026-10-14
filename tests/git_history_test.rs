@@ -20,8 +20,18 @@ fn scanner() -> Scanner {
 fn git(dir: &Path, args: &[&str]) -> String {
     let out = Command::new("git")
         .current_dir(dir)
-        .args(["-c", "user.name=Ada Tester", "-c", "user.email=ada@example.invalid"])
-        .args(["-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"])
+        .args([
+            "-c",
+            "user.name=Ada Tester",
+            "-c",
+            "user.email=ada@example.invalid",
+        ])
+        .args([
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "init.defaultBranch=main",
+        ])
         .args(args)
         .output()
         .expect("git must be installed to run these tests");
@@ -63,9 +73,18 @@ fn repo() -> Repo {
     fs::write(path.join("app.conf"), "name = demo\nport = 8080\n").unwrap();
     let cleanup_commit = commit(path, "remove token");
     fs::create_dir(path.join("deploy")).unwrap();
-    fs::write(path.join("deploy/env.txt"), format!("x = 1\nt = \"{}\"\n", token('b'))).unwrap();
+    fs::write(
+        path.join("deploy/env.txt"),
+        format!("x = 1\nt = \"{}\"\n", token('b')),
+    )
+    .unwrap();
     let second_commit = commit(path, "add deploy env");
-    Repo { dir, leak_commit, cleanup_commit, second_commit }
+    Repo {
+        dir,
+        leak_commit,
+        cleanup_commit,
+        second_commit,
+    }
 }
 
 fn cli(dir: &Path, args: &[&str]) -> Output {
@@ -91,15 +110,25 @@ fn deleted_secret_is_found_in_history_at_the_commit_that_added_it() {
     let history = scan_history(&scanner(), path, None).unwrap();
     assert_eq!(history.len(), 2, "{history:#?}");
 
-    let leaked = history.iter().find(|h| h.finding.matched_text == token('a')).unwrap();
+    let leaked = history
+        .iter()
+        .find(|h| h.finding.matched_text == token('a'))
+        .unwrap();
     assert_eq!(leaked.commit.commit, repo.leak_commit);
     assert_eq!(leaked.commit.author, "Ada Tester");
-    assert!(leaked.commit.date.starts_with("20"), "ISO date, got {}", leaked.commit.date);
+    assert!(
+        leaked.commit.date.starts_with("20"),
+        "ISO date, got {}",
+        leaked.commit.date
+    );
     assert_eq!(leaked.finding.line_number, 3);
     assert!(leaked.finding.file_path.ends_with("app.conf"));
     assert_eq!(leaked.finding.pattern_name, "GitHub Token");
 
-    let second = history.iter().find(|h| h.finding.matched_text == token('b')).unwrap();
+    let second = history
+        .iter()
+        .find(|h| h.finding.matched_text == token('b'))
+        .unwrap();
     assert_eq!(second.commit.commit, repo.second_commit);
     assert_eq!(second.finding.line_number, 2);
     assert!(second.finding.file_path.ends_with("deploy/env.txt"));
@@ -109,7 +138,10 @@ fn deleted_secret_is_found_in_history_at_the_commit_that_added_it() {
 fn since_limits_the_scan_to_later_commits() {
     let repo = repo();
     let history = scan_history(&scanner(), repo.dir.path(), Some(&repo.cleanup_commit)).unwrap();
-    let secrets: Vec<&str> = history.iter().map(|h| h.finding.matched_text.as_str()).collect();
+    let secrets: Vec<&str> = history
+        .iter()
+        .map(|h| h.finding.matched_text.as_str())
+        .collect();
     assert_eq!(secrets, vec![token('b')]);
 }
 
@@ -117,11 +149,18 @@ fn since_limits_the_scan_to_later_commits() {
 fn a_secret_re_added_later_is_reported_once_at_its_first_commit() {
     let repo = repo();
     let path = repo.dir.path();
-    fs::write(path.join("app.conf"), format!("token = \"{}\"\n", token('a'))).unwrap();
+    fs::write(
+        path.join("app.conf"),
+        format!("token = \"{}\"\n", token('a')),
+    )
+    .unwrap();
     commit(path, "token is back");
 
     let history = scan_history(&scanner(), path, None).unwrap();
-    let hits: Vec<_> = history.iter().filter(|h| h.finding.matched_text == token('a')).collect();
+    let hits: Vec<_> = history
+        .iter()
+        .filter(|h| h.finding.matched_text == token('a'))
+        .collect();
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].commit.commit, repo.leak_commit);
 }
@@ -182,14 +221,20 @@ fn cli_git_mode_reports_commit_details_in_json_text_and_sarif() {
     let tree = cli(path, &[]);
     let doc: serde_json::Value = serde_json::from_slice(&tree.stdout).unwrap();
     assert_eq!(doc.as_array().unwrap().len(), 1);
-    assert!(doc[0].get("commit").is_none(), "working-tree scan has no commit");
+    assert!(
+        doc[0].get("commit").is_none(),
+        "working-tree scan has no commit"
+    );
 
     let out = cli(path, &["--git"]);
     assert_eq!(out.status.code(), Some(1));
     let doc: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     let items = doc.as_array().unwrap();
     assert_eq!(items.len(), 2);
-    let leaked = items.iter().find(|i| i["matched_text"] == token('a').as_str()).unwrap();
+    let leaked = items
+        .iter()
+        .find(|i| i["matched_text"] == token('a').as_str())
+        .unwrap();
     assert_eq!(leaked["commit"], repo.leak_commit.as_str());
     assert_eq!(leaked["author"], "Ada Tester");
     assert_eq!(leaked["file_path"], "./app.conf");
@@ -230,7 +275,10 @@ fn cli_since_and_usage_errors() {
 
     // --since without --git, an unknown revision, and a non-repository.
     assert_eq!(cli(path, &["--since", "HEAD"]).status.code(), Some(2));
-    assert_eq!(cli(path, &["--git", "--since", "nope"]).status.code(), Some(2));
+    assert_eq!(
+        cli(path, &["--git", "--since", "nope"]).status.code(),
+        Some(2)
+    );
     let plain = TempDir::new().unwrap();
     assert_eq!(cli(plain.path(), &["--git"]).status.code(), Some(2));
 }
@@ -245,10 +293,18 @@ fn cli_baseline_and_config_apply_to_history() {
     let clean = cli(path, &["--git", "--baseline", "../baseline.json"]);
     assert_eq!(clean.status.code(), Some(0));
 
-    fs::write(path.join("rules.toml"), "[allowlist]\npaths = [\"^deploy/\"]\n").unwrap();
+    fs::write(
+        path.join("rules.toml"),
+        "[allowlist]\npaths = [\"^deploy/\"]\n",
+    )
+    .unwrap();
     let out = cli(path, &["--git", "--config", "rules.toml"]);
     let doc: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    let files: Vec<&str> =
-        doc.as_array().unwrap().iter().map(|i| i["file_path"].as_str().unwrap()).collect();
+    let files: Vec<&str> = doc
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["file_path"].as_str().unwrap())
+        .collect();
     assert_eq!(files, vec!["./app.conf"]);
 }

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-10-14
+
 ### Added
 - 15 more rules (73 in total): Azure storage account keys, Databricks, Supabase, Telegram, Postman, Linear, Notion, Doppler, Docker Hub, Grafana, Age secret keys, GCP service-account files, Datadog, Cloudflare and Vercel
 - `secretscan -` scans standard input, so output from other commands can be piped in
@@ -32,12 +34,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One scan path for all files regardless of size; removed the separate chunked path for files over 10 MB, the legacy `scan_directory_rayon` and the `SECRETSCAN_DEBUG` output
 - Built-in rules are defined once, in a single `RULE_DEFS` table; `patterns::rules()` exposes them with stable ids. Detection behaviour is unchanged
 
+- The README now matches the tool: the obfuscation examples are sized above their detection thresholds, the example output is regenerated from a real run, the stated Rust requirement is the real floor (1.88, not 1.70), the rule count is stated consistently (73), and the comparison table no longer calls truffleHog a non-parallel Python tool
+- `Cargo.lock` is committed (binary crate): `cargo install --locked` is reproducible and the MSRV cannot drift silently
+- `rust-version = "1.88"` is declared in Cargo.toml so Cargo enforces the requirement
+- CITATION.cff's version is updated by cargo-release alongside the README's
+
 ### Performance
 - A `RegexSet` prefilter runs each rule's regex only on lines it can match
 - Four regexes used for obfuscation analysis were recompiled for every scanned line; they are now compiled once
 
 ### Fixed
 - The per-rule summary in text output was listed in a different order on every run
+- `secretscan --version` reports the real package version; the 0.2.4 tarball had "0.2.1" hardcoded in `main.rs`
 - A file containing any invalid UTF-8 byte was skipped entirely; it is now scanned, with invalid bytes replaced
 - A single private key produced up to three findings (specific, generic and multi-line rules); it is now reported once under its most specific rule
 - Unlabelled PKCS#8 keys (`BEGIN PRIVATE KEY`) were reported as "RSA Private Key"; they are now "Generic Private Key"
@@ -76,3 +84,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Colored terminal output
 
 [0.1.0]: https://github.com/adventurewave-labs/secret-scan/releases/tag/v0.1.0
+[0.2.5]: https://github.com/adventurewave-labs/secret-scan/compare/v0.2.4...v0.2.5
+[Unreleased]: https://github.com/adventurewave-labs/secret-scan/compare/v0.2.5...HEAD

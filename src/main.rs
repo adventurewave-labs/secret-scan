@@ -1,12 +1,12 @@
 use clap::{Arg, ArgAction, Command};
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
+use secretscan::baseline::Baseline;
 use secretscan::config::Config;
 use secretscan::git::{scan_history, scan_staged, CommitInfo, HistoryFinding};
 use secretscan::patterns::{get_all_patterns_owned, register_custom_severity, Severity};
 use secretscan::{output::*, ContextFilter, Scanner};
 use std::fs;
-use secretscan::baseline::Baseline;
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -172,7 +172,12 @@ fn main() {
     let baseline = baseline_path.map(|path| match Baseline::load(Path::new(path)) {
         Ok(baseline) => baseline,
         Err(e) => {
-            eprintln!("{} Cannot read baseline {}: {}", "Error:".red().bold(), path, e);
+            eprintln!(
+                "{} Cannot read baseline {}: {}",
+                "Error:".red().bold(),
+                path,
+                e
+            );
             process::exit(EXIT_ERROR);
         }
     });
@@ -322,7 +327,12 @@ fn main() {
     if let Some(path) = write_baseline_path {
         let recorded = Baseline::from_findings(&findings);
         if let Err(e) = recorded.save(Path::new(path)) {
-            eprintln!("{} Cannot write baseline {}: {}", "Error:".red().bold(), path, e);
+            eprintln!(
+                "{} Cannot write baseline {}: {}",
+                "Error:".red().bold(),
+                path,
+                e
+            );
             process::exit(EXIT_ERROR);
         }
         if let Some(pb) = &progress {
@@ -368,20 +378,27 @@ fn main() {
     } else {
         findings
             .iter()
-            .filter_map(|f| history.iter().find(|h| h.finding == *f).map(|h| h.commit.clone()))
+            .filter_map(|f| {
+                history
+                    .iter()
+                    .find(|h| h.finding == *f)
+                    .map(|h| h.commit.clone())
+            })
             .collect()
     };
 
     // SARIF is rendered before redaction: its fingerprints are derived from
     // the real secret, and SARIF output never contains secret text anyway.
     let sarif = match format {
-        OutputFormat::Sarif => match format_as_sarif_report(&findings, env!("CARGO_PKG_VERSION"), &commits) {
-            Ok(sarif) => Some(sarif),
-            Err(e) => {
-                eprintln!("{} Failed to format SARIF: {}", "Error:".red().bold(), e);
-                process::exit(EXIT_ERROR);
+        OutputFormat::Sarif => {
+            match format_as_sarif_report(&findings, env!("CARGO_PKG_VERSION"), &commits) {
+                Ok(sarif) => Some(sarif),
+                Err(e) => {
+                    eprintln!("{} Failed to format SARIF: {}", "Error:".red().bold(), e);
+                    process::exit(EXIT_ERROR);
+                }
             }
-        },
+        }
         _ => None,
     };
 

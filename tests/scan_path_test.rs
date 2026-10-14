@@ -48,10 +48,18 @@ fn crlf_line_endings_do_not_leak_into_findings() {
 #[test]
 fn last_line_without_trailing_newline_is_scanned() {
     let dir = TempDir::new().unwrap();
-    fs::write(dir.path().join("eof.txt"), format!("x\ntoken = \"{}\"", token())).unwrap();
+    fs::write(
+        dir.path().join("eof.txt"),
+        format!("x\ntoken = \"{}\"", token()),
+    )
+    .unwrap();
     let findings = scan_dir(&dir);
     assert_eq!(
-        findings.iter().find(|f| f.matched_text == token()).unwrap().line_number,
+        findings
+            .iter()
+            .find(|f| f.matched_text == token())
+            .unwrap()
+            .line_number,
         2
     );
 }
@@ -97,7 +105,10 @@ fn large_file_reports_exact_line_numbers_and_applies_the_same_filters() {
         format!("token = \"{}\"\npassword = \"aaaaaaaa\"\n", token()),
     )
     .unwrap();
-    let small_rules: Vec<String> = scan_dir(&small).into_iter().map(|f| f.pattern_name).collect();
+    let small_rules: Vec<String> = scan_dir(&small)
+        .into_iter()
+        .map(|f| f.pattern_name)
+        .collect();
     let mut big_rules: Vec<String> = findings.iter().map(|f| f.pattern_name.clone()).collect();
     big_rules.dedup();
     big_rules.sort();

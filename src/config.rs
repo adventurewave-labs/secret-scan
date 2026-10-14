@@ -118,8 +118,7 @@ fn compile(kind: &str, patterns: &[String]) -> Result<Vec<Regex>, ConfigError> {
 impl Config {
     /// Parse and validate configuration text.
     pub fn parse(text: &str) -> Result<Self, ConfigError> {
-        let raw: RawConfig =
-            toml::from_str(text).map_err(|e| ConfigError::Parse(e.to_string()))?;
+        let raw: RawConfig = toml::from_str(text).map_err(|e| ConfigError::Parse(e.to_string()))?;
 
         let mut disabled_rules = BTreeSet::new();
         for id in raw.rules.disable {
@@ -157,7 +156,11 @@ impl Config {
                     ))
                 })?,
             };
-            custom_rules.push(CustomRule { name, regex, severity });
+            custom_rules.push(CustomRule {
+                name,
+                regex,
+                severity,
+            });
         }
 
         Ok(Config {
@@ -211,7 +214,10 @@ impl Config {
         }
         let path = normalize_path(&finding.file_path);
         self.allow_paths.iter().any(|re| re.is_match(&path))
-            || self.allow_regexes.iter().any(|re| re.is_match(&finding.matched_text))
+            || self
+                .allow_regexes
+                .iter()
+                .any(|re| re.is_match(&finding.matched_text))
             || self.allow_fingerprints.contains(&fingerprint(finding))
     }
 

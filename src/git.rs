@@ -71,9 +71,9 @@ pub fn scan_history(
             // The rev is interpolated into a single `git log` argument; a
             // value like `--output=x` would reach git as an option.
             if rev.starts_with('-') {
-                return Err(GitError::Failed(
-                    format!("invalid --since revision {rev:?}: must not start with '-'"),
-                ));
+                return Err(GitError::Failed(format!(
+                    "invalid --since revision {rev:?}: must not start with '-'"
+                )));
             }
             format!("{rev}..HEAD")
         }
@@ -98,7 +98,9 @@ pub fn scan_history(
         .output()
         .map_err(GitError::Spawn)?;
     if !output.status.success() {
-        return Err(GitError::Failed(String::from_utf8_lossy(&output.stderr).into_owned()));
+        return Err(GitError::Failed(
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        ));
     }
     let log = String::from_utf8_lossy(&output.stdout);
     Ok(scan_log(scanner, repo, &log))
@@ -125,7 +127,10 @@ pub fn scan_log(scanner: &Scanner, repo: &Path, log: &str) -> Vec<HistoryFinding
         .filter_map(|finding| {
             raw.iter()
                 .find(|(candidate, _)| *candidate == finding)
-                .map(|(_, commit)| HistoryFinding { finding, commit: commit.clone() })
+                .map(|(_, commit)| HistoryFinding {
+                    finding,
+                    commit: commit.clone(),
+                })
         })
         .collect()
 }
@@ -151,11 +156,15 @@ pub fn scan_staged(scanner: &Scanner, repo: &Path) -> Result<Vec<Finding>, GitEr
         .output()
         .map_err(GitError::Spawn)?;
     if !output.status.success() {
-        return Err(GitError::Failed(String::from_utf8_lossy(&output.stderr).into_owned()));
+        return Err(GitError::Failed(
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        ));
     }
     let diff = String::from_utf8_lossy(&output.stdout);
-    let mut findings: Vec<Finding> =
-        scan_diff(scanner, repo, &diff).into_iter().map(|(finding, _)| finding).collect();
+    let mut findings: Vec<Finding> = scan_diff(scanner, repo, &diff)
+        .into_iter()
+        .map(|(finding, _)| finding)
+        .collect();
     Scanner::postprocess(&mut findings);
     Ok(findings)
 }
@@ -231,7 +240,9 @@ fn parse_new_path(target: &str) -> Option<PathBuf> {
     if unquoted == "/dev/null" {
         return None;
     }
-    Some(PathBuf::from(unquoted.strip_prefix("b/").unwrap_or(unquoted)))
+    Some(PathBuf::from(
+        unquoted.strip_prefix("b/").unwrap_or(unquoted),
+    ))
 }
 
 /// `(old line count, new start line, new line count)` from
@@ -259,15 +270,24 @@ mod tests {
     #[test]
     fn hunk_headers() {
         assert_eq!(parse_hunk_header("@@ -0,0 +1,3 @@"), Some((0, 1, 3)));
-        assert_eq!(parse_hunk_header("@@ -7 +7 @@ fn main() {"), Some((1, 7, 1)));
+        assert_eq!(
+            parse_hunk_header("@@ -7 +7 @@ fn main() {"),
+            Some((1, 7, 1))
+        );
         assert_eq!(parse_hunk_header("@@ -4,2 +3,0 @@"), Some((2, 3, 0)));
         assert_eq!(parse_hunk_header("@@ nonsense @@"), None);
     }
 
     #[test]
     fn new_paths() {
-        assert_eq!(parse_new_path("b/src/a.rs"), Some(PathBuf::from("src/a.rs")));
-        assert_eq!(parse_new_path("\"b/with space.txt\""), Some(PathBuf::from("with space.txt")));
+        assert_eq!(
+            parse_new_path("b/src/a.rs"),
+            Some(PathBuf::from("src/a.rs"))
+        );
+        assert_eq!(
+            parse_new_path("\"b/with space.txt\""),
+            Some(PathBuf::from("with space.txt"))
+        );
         assert_eq!(parse_new_path("/dev/null"), None);
     }
 }
