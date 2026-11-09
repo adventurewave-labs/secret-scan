@@ -5,10 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>secret-scan — Adventure Wave Labs</title>
 <meta name="description" content="Rust secret scanner CLI — 50 patterns, entropy analysis, Base64/hex obfuscation detection. cargo install secretscan">
+<link rel="canonical" href="https://adventurewave-labs.github.io/secret-scan/">
 <meta property="og:title" content="secret-scan">
 <meta property="og:description" content="Rust secret scanner CLI — 50 patterns, entropy analysis, Base64/hex obfuscation detection. cargo install secretscan">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://adventurewave-labs.github.io/secret-scan/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="secret-scan">
+<meta name="twitter:description" content="Rust secret scanner CLI — 50 patterns, entropy analysis, Base64/hex obfuscation detection. cargo install secretscan">
+<meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='#38bdf8' stroke-width='2.5'/%3E%3Ccircle cx='16' cy='16' r='5' fill='#fbbf24'/%3E%3C/svg%3E">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -63,6 +68,9 @@ footer a:hover{color:var(--a1)}
 @media(max-width:640px){.nav{padding:12px 16px}.hero-inner{padding:44px 18px 32px}.stats{gap:14px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition:none !important}}
 </style>
+<style>details{border:1px solid var(--line);border-radius:11px;padding:14px 18px;background:var(--card)}details+details{margin-top:10px}summary{cursor:pointer;font-weight:600;font-size:14.5px}summary:hover{color:var(--a1)}details p{margin-top:10px;font-size:13.8px;color:var(--mut)}</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@graph": [{"@type": "SoftwareSourceCode", "name": "secret-scan", "description": "Rust secret scanner CLI — 50 patterns, entropy analysis, Base64/hex obfuscation detection. cargo install secretscan", "url": "https://adventurewave-labs.github.io/secret-scan/", "codeRepository": "https://github.com/adventurewave-labs/secret-scan", "programmingLanguage": "Rust", "keywords": "api-secrets, aws-keys, cli, credential-detection, devsecops, entropy, github-tokens, rust, secret-scanning, secrets-detection, security, security-scanner", "author": {"@type": "Organization", "name": "Adventure Wave Labs", "url": "https://github.com/adventurewave-labs"}, "maintainer": {"@type": "Organization", "name": "Adventure Wave Labs", "url": "https://github.com/adventurewave-labs"}, "dateModified": "2026-11-01T22:45:57Z", "version": "v0.2.5", "isAccessibleForFree": true, "license": "https://github.com/adventurewave-labs/secret-scan/blob/HEAD/LICENSE"}, {"@type": "WebSite", "name": "secret-scan — Adventure Wave Labs", "url": "https://adventurewave-labs.github.io/secret-scan/", "publisher": {"@type": "Organization", "name": "Adventure Wave Labs"}}, {"@type": "Organization", "name": "Adventure Wave Labs", "url": "https://github.com/adventurewave-labs", "description": "The lab for agentic developer tooling"}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "What is secret-scan?", "acceptedAnswer": {"@type": "Answer", "text": "Rust secret scanner CLI — 50 patterns, entropy analysis, Base64/hex obfuscation detection."}}, {"@type": "Question", "name": "Who maintains secret-scan?", "acceptedAnswer": {"@type": "Answer", "text": "Adventure Wave Labs — The lab for agentic developer tooling. Source code and issues live on GitHub at github.com/adventurewave-labs/secret-scan."}}, {"@type": "Question", "name": "How do I install secret-scan?", "acceptedAnswer": {"@type": "Answer", "text": "Run `cargo install secretscan` (via crates.io). Full instructions in the repository README."}}]}</script>
 </head>
 <body>
 <header class="nav">
@@ -104,11 +112,12 @@ footer a:hover{color:var(--a1)}
 <main>
 <section id="about"><h2>What it does</h2><div class="cards"><div class="card"><h3>50 detection patterns</h3><p>AWS keys, GitHub tokens, API secrets — plus entropy analysis to catch the patterns nobody named.</p></div><div class="card"><h3>Obfuscation aware</h3><p>Base64 and hex-encoded secrets are decoded and matched, not skipped.</p></div><div class="card"><h3>cargo install secretscan</h3><p>One line to install; runs on any codebase, CI-friendly exit codes.</p></div></div></section>
 <section id="install"><h2>Install</h2><div class="install"><pre><code>cargo install secretscan</code><button class="copy" onclick="cp(this)">copy</button></pre><p style="color:var(--mut);font-size:12.5px;margin-top:10px">via crates.io</p></div></section>
+<section id="faq"><h2>FAQ</h2><div class="faq"><details><summary>What is secret-scan?</summary><p>Rust secret scanner CLI — 50 patterns, entropy analysis, Base64/hex obfuscation detection.</p></details><details><summary>Who maintains secret-scan?</summary><p>Adventure Wave Labs — The lab for agentic developer tooling. Source code and issues live on GitHub at github.com/adventurewave-labs/secret-scan.</p></details><details><summary>How do I install secret-scan?</summary><p>Run `cargo install secretscan` (via crates.io). Full instructions in the repository README.</p></details></div></section>
 <section id="more"><h2>Explore</h2><div class="links">
 <a href="https://github.com/adventurewave-labs/secret-scan#readme">README <span class="arr">→</span></a>
 <a href="https://github.com/adventurewave-labs/secret-scan/releases">Releases <span class="arr">→</span></a>
 <a href="https://github.com/adventurewave-labs/secret-scan/issues">Issues <span class="arr">→</span></a>
-<a href="https://github.com/adventurewave-labs/secret-scan/license">License <span class="arr">→</span></a>
+<a href="https://github.com/adventurewave-labs/secret-scan/blob/HEAD/LICENSE">License <span class="arr">→</span></a>
 </div></section>
 </main>
 <footer>
