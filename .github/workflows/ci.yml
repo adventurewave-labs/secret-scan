@@ -50,11 +50,14 @@ jobs:
         run: cargo check --locked --all-features
 
   # The staged/hook tests once failed on a bare validation box (findings
-  # 2026-11-16: the guarded commit was not rejected) and passed once the box
-  # had a git identity configured. The tests now carry their own git identity
-  # and pin hook resolution, so they must stay green everywhere — this leg
-  # proves it in a bare container (no preinstalled git, no git config, no
-  # shared cargo state) and blocks the merge when it regresses.
+  # 2026-11-16: the guarded commit was not rejected). The tests carry their
+  # own git identity per invocation (`-c user.name`/`-c user.email` in the
+  # git() helper, tests/staged_test.rs) and pin hook resolution to the temp
+  # repo's own hooks dir, because the demonstrated ambient dependency is a
+  # global `core.hooksPath` (reproduced locally; see PR #13). This leg makes
+  # the container hostile the same way — a bogus global core.hooksPath plus a
+  # group-writable umask — so if the pin is ever removed the leg goes red,
+  # and it blocks the merge when that regression lands.
   bare-env:
     name: Bare container (rust:1)
     runs-on: ubuntu-latest
@@ -67,5 +70,7 @@ jobs:
           apt-get install -y --no-install-recommends git
           rm -rf /var/lib/apt/lists/*
       - uses: actions/checkout@v4
-      - name: Hook/staging tests in a bare environment
-        run: bash -c 'umask 0002; cargo test --test staged_test'
+      - name: Make the container hostile (ambient global core.hooksPath)
+        run: git config --global core.hooksPath /nonexistent-hooks
+      - name: Hook/staging tests under the hostile global config
+        run: bash -c 'umask 0002; cargo test --locked --test staged_test'
