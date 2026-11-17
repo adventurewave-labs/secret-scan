@@ -1,6 +1,6 @@
 <p align="center"><img src="assets/banner.svg" alt="secret-scan — animated banner" width="100%"></p>
 
-# secretscan 🔍 v0.2.5
+# secretscan 🔍
 
 [![Crates.io](https://img.shields.io/crates/v/secretscan.svg)](https://crates.io/crates/secretscan)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
