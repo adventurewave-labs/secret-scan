@@ -22,11 +22,11 @@ tag-message = "Release version {{version}}"
 
 # Update these files with version
 pre-release-replacements = [
-  # Update version in title
-  {file="README.md", search="# secretscan 🔍 v[0-9.]+", replace="# secretscan 🔍 v{{version}}"},
-  # (Pruned: the download-link and bare-version patterns no longer match any
-  # README text and would fail the release with min=1. Only patterns that
-  # match today are kept: the version header below and CITATION.cff.)
+  # (Pruned: the download-link and bare-version patterns, and the README
+  # title-version pattern, no longer match any README text — the README title
+  # is versionless now; the crates.io badge renders the live version. Stale
+  # patterns here would fail the release with min=1. Only CITATION.cff still
+  # matches.)
   # CITATION.cff version (src/main.rs now reads env!("CARGO_PKG_VERSION"), no longer needs a rewrite)
   {file="CITATION.cff", search="version: \"[0-9.]+\"", replace="version: \"{{version}}\""},
   # CHANGELOG release sections are maintained manually at release-prep time
