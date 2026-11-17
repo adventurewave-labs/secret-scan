@@ -48,3 +48,24 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Check at the declared MSRV (lib and bins, the install surface)
         run: cargo check --locked --all-features
+
+  # The staged/hook tests once failed on a bare validation box (findings
+  # 2026-11-16: the guarded commit was not rejected) and passed once the box
+  # had a git identity configured. The tests now carry their own git identity
+  # and pin hook resolution, so they must stay green everywhere — this leg
+  # proves it in a bare container (no preinstalled git, no git config, no
+  # shared cargo state) and blocks the merge when it regresses.
+  bare-env:
+    name: Bare container (rust:1)
+    runs-on: ubuntu-latest
+    container: rust:1
+    timeout-minutes: 15
+    steps:
+      - name: Install git
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends git
+          rm -rf /var/lib/apt/lists/*
+      - uses: actions/checkout@v4
+      - name: Hook/staging tests in a bare environment
+        run: bash -c 'umask 0002; cargo test --test staged_test'

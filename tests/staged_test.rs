@@ -46,6 +46,19 @@ fn git(dir: &Path, args: &[&str]) {
 fn repo() -> TempDir {
     let dir = TempDir::new().unwrap();
     git(dir.path(), &["init", "-q"]);
+    // Pin hook resolution to this repo's own hooks dir so the tests are
+    // self-sufficient: an ambient global `core.hooksPath` (for example from a
+    // shared-machine `pre-commit` install) would stop `.git/hooks/pre-commit`
+    // from running, the guarded commit would succeed, and the hook test would
+    // fail with "commit with a secret must be rejected" — as seen once on a
+    // bare validation box. Local config outranks global/system config, so
+    // this holds in any environment. (Git identity is already injected per
+    // invocation via `-c user.name`/`-c user.email` in the `git()` helper.)
+    let hooks = dir.path().join(".git").join("hooks");
+    git(
+        dir.path(),
+        &["config", "core.hooksPath", hooks.to_str().unwrap()],
+    );
     fs::write(
         dir.path().join("old.txt"),
         format!("legacy = \"{}\"\n", token('o')),
