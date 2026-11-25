@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-24
+
+- GitHub downloads for x86-64 Linux (GNU libc and musl), and Apple Silicon and Intel macOS.
+- Each binary ships with a SHA-256 checksum, a CycloneDX SBOM for its target, and a GitHub build provenance attestation.
+- Release CI smoke-tests each packaged binary on its target platform and checks the public downloads against the build artifacts.
+
 ## [0.2.5] - 2026-10-14
 
 ### Added
@@ -85,4 +91,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [0.1.0]: https://github.com/adventurewave-labs/secret-scan/releases/tag/v0.1.0
 [0.2.5]: https://github.com/adventurewave-labs/secret-scan/compare/v0.2.4...v0.2.5
-[Unreleased]: https://github.com/adventurewave-labs/secret-scan/compare/v0.2.5...HEAD
+[0.2.6]: https://github.com/adventurewave-labs/secret-scan/compare/v0.2.5...v0.2.6
+[Unreleased]: https://github.com/adventurewave-labs/secret-scan/compare/v0.2.6...HEAD

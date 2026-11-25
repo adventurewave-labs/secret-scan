@@ -42,7 +42,8 @@ jobs:
 
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
@@ -50,6 +51,16 @@ jobs:
           toolchain: stable
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Verify tag version
+        if: github.ref_type == 'tag'
+        run: |
+          version=$(cargo metadata --locked --no-deps --format-version 1 |
+            jq -er '.packages[] | select(.name == "secretscan") | .version')
+          if [[ "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match Cargo version $version"
+            exit 1
+          fi
 
       # Fail fast on a tag that does not compile before burning matrix minutes.
       - name: cargo build (host)
@@ -73,13 +84,14 @@ jobs:
             os: ubuntu-latest
             musl: true
           - target: aarch64-apple-darwin
-            os: macos-latest
+            os: macos-15
           - target: x86_64-apple-darwin
-            os: macos-latest
+            os: macos-15-intel
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
@@ -106,6 +118,17 @@ jobs:
           cp "target/${{ matrix.target }}/release/secretscan" "dist/secretscan-${{ matrix.target }}"
           cd dist
           shasum -a 256 "secretscan-${{ matrix.target }}" > "secretscan-${{ matrix.target }}.sha256"
+
+      - name: Smoke-test packaged binary
+        shell: bash
+        env:
+          BIN: secretscan-${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          cd dist
+          shasum -a 256 -c "$BIN.sha256"
+          "./$BIN" --version
+          printf 'distribution smoke test\n' | "./$BIN" -
 
       # CycloneDX SBOM of exactly the dependency set compiled into this
       # target's binary, published next to it.
@@ -138,6 +161,7 @@ jobs:
         with:
           name: secretscan-${{ matrix.target }}
           path: dist/
+          if-no-files-found: error
 
   release:
     name: Attach to GitHub Release
@@ -161,3 +185,19 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: artifacts/*
+          fail_on_unmatched_files: true
+
+      - name: Verify public release downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir downloaded
+          for original in artifacts/*; do
+            asset=$(basename "$original")
+            curl --fail --silent --show-error --location --retry 5 --retry-all-errors \
+              --output "downloaded/$asset" \
+              "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$asset"
+            cmp "$original" "downloaded/$asset"
+          done
+          cd downloaded
+          shasum -a 256 -c ./*.sha256
