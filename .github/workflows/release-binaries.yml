@@ -66,6 +66,13 @@ jobs:
       - name: cargo build (host)
         run: cargo build --release --locked
 
+      - name: Upload license notice
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-license
+          path: LICENSE
+          if-no-files-found: error
+
   binaries:
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
