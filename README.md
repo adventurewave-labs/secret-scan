@@ -30,6 +30,22 @@ A fast secret scanner for your codebase. secretscan helps you find and remediate
 
 ## 🛠️ Installation
 
+### Prebuilt downloads
+
+Starting with v0.2.6, get a binary and its matching `.sha256` file from the [GitHub releases](https://github.com/adventurewave-labs/secret-scan/releases).
+Choose Linux x86-64 (GNU libc or musl), macOS Apple Silicon (`aarch64`), or macOS Intel (`x86_64`).
+Each build also has a CycloneDX SBOM (`.cdx.json`) and a GitHub provenance attestation.
+For example, on Apple Silicon:
+
+```sh
+shasum -a 256 -c secretscan-aarch64-apple-darwin.sha256
+mkdir -p "$HOME/.local/bin"
+install -m 755 secretscan-aarch64-apple-darwin "$HOME/.local/bin/secretscan"
+secretscan --version
+```
+
+Add `$HOME/.local/bin` to `PATH` if needed.
+
 ### From Crates.io
 
 ```bash
